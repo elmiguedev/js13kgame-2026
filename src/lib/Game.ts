@@ -1,12 +1,12 @@
+import SceneController, { type SceneConstructor } from "./controllers/SceneController";
 import CanvasRenderer from "./renderers/CanvasRenderer";
-import type Scene from "./Scene";
 
 export interface GameConfig {
   resolution: {
     width: number;
     height: number;
   };
-  scenes: Scene[];
+  scenes: SceneConstructor[];
   canvas?: HTMLCanvasElement;
   parent?: HTMLElement;
   zoom?: number;
@@ -17,8 +17,7 @@ export default class Game {
   readonly canvas: HTMLCanvasElement;
   readonly renderer: CanvasRenderer;
   readonly zoom: number;
-  private readonly scenes = new Map<string, Scene>();
-  private currentScene: Scene | undefined;
+  readonly scene: SceneController;
 
   constructor({ canvas, parent = document.body, resolution, scenes, zoom = 1, pixelArt = true }: GameConfig) {
     if (!Number.isFinite(zoom) || zoom <= 0) {
@@ -38,49 +37,12 @@ export default class Game {
 
     this.renderer = new CanvasRenderer(this.canvas, { pixelArt });
 
-    for (const scene of scenes) {
-      this.addScene(scene);
-    }
-
-    const firstScene = scenes[0];
-    if (firstScene) {
-      this.startScene(firstScene.key);
-    }
-  }
-
-  addScene<T extends Scene>(scene: T): T {
-    if (this.scenes.has(scene.key)) {
-      throw new Error(`A scene with key "${scene.key}" already exists.`);
-    }
-
-    scene.attach(this);
-    this.scenes.set(scene.key, scene);
-    return scene;
-  }
-
-  getScene<T extends Scene = Scene>(key: string): T | undefined {
-    return this.scenes.get(key) as T | undefined;
-  }
-
-  startScene(key: string): void {
-    const scene = this.scenes.get(key);
-
-    if (!scene) {
-      throw new Error(`Unknown scene "${key}".`);
-    }
-
-    this.currentScene?.stop();
-    this.currentScene = scene;
-    scene.start();
+    this.scene = new SceneController(this, scenes);
+    this.scene.startFirst();
   }
 
   destroy(): void {
-    this.currentScene?.stop();
-    for (const scene of this.scenes.values()) {
-      scene.destroy();
-    }
-
-    this.scenes.clear();
+    this.scene.destroy();
     this.renderer.destroy();
     this.canvas.remove();
   }

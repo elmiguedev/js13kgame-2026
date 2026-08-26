@@ -20,6 +20,7 @@ export default class EntityController {
   remove(id: string): GameObject | undefined {
     const object = this.objects.get(id);
     this.objects.delete(id);
+    object?.destroy();
     return object;
   }
 
@@ -35,7 +36,11 @@ export default class EntityController {
     }
   }
 
-  clear(): void {
+  destroy(): void {
+    for (const object of this.objects.values()) {
+      object.destroy();
+    }
+
     this.objects.clear();
   }
 }

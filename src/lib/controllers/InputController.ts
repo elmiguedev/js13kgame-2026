@@ -1,43 +1,18 @@
 import Controller from "./Controller";
-
-export interface PointerPosition {
-  x: number;
-  y: number;
-}
+import KeyboardController from "./KeyboardController";
+import MouseController from "./MouseController";
 
 export default class InputController extends Controller {
-  readonly pointer: PointerPosition = { x: 0, y: 0 };
-  private readonly keys = new Set<string>();
-
-  isKeyDown(key: string): boolean {
-    return this.keys.has(key);
-  }
+  readonly keyboard = new KeyboardController();
+  readonly mouse = new MouseController();
 
   protected override onAttach(): void {
-    window.addEventListener("keydown", this.handleKeyDown);
-    window.addEventListener("keyup", this.handleKeyUp);
-    this.scene.game.canvas.addEventListener("pointermove", this.handlePointerMove);
+    this.keyboard.attach(this.scene);
+    this.mouse.attach(this.scene);
   }
 
   protected override onDetach(): void {
-    window.removeEventListener("keydown", this.handleKeyDown);
-    window.removeEventListener("keyup", this.handleKeyUp);
-    this.scene.game.canvas.removeEventListener("pointermove", this.handlePointerMove);
-    this.keys.clear();
+    this.keyboard.detach();
+    this.mouse.detach();
   }
-
-  private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    this.keys.add(event.key);
-  };
-
-  private readonly handleKeyUp = (event: KeyboardEvent): void => {
-    this.keys.delete(event.key);
-  };
-
-  private readonly handlePointerMove = (event: PointerEvent): void => {
-    const canvas = this.scene.game.canvas;
-    const bounds = canvas.getBoundingClientRect();
-    this.pointer.x = (event.clientX - bounds.left) * (canvas.width / bounds.width);
-    this.pointer.y = (event.clientY - bounds.top) * (canvas.height / bounds.height);
-  };
 }

@@ -20,4 +20,6 @@ export default class Object {
   update(_time: number, _delta: number): void { }
 
   render(_context: CanvasRenderingContext2D): void { }
+
+  destroy(): void { }
 }

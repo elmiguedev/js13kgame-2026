@@ -1,6 +1,7 @@
 import Controller from "./controllers/Controller";
 import EntityController from "./controllers/EntityController";
 import InputController from "./controllers/InputController";
+import type SceneController from "./controllers/SceneController";
 import type Game from "./Game";
 
 export default class Scene {
@@ -12,6 +13,7 @@ export default class Scene {
   private frameId: number | undefined;
   private lastTime: number | undefined;
   private created = false;
+  private active = false;
 
   constructor(readonly key: string) {
     this.addController(this.input);
@@ -24,6 +26,12 @@ export default class Scene {
 
     return this.gameInstance;
   }
+
+  get scene(): SceneController {
+    return this.game.scene;
+  }
+
+  init(_data?: any): void {}
 
   create(): void {}
 
@@ -50,7 +58,14 @@ export default class Scene {
     }
   }
 
-  start(): void {
+  start(data?: any): void {
+    this.active = true;
+    this.init(data);
+
+    if (!this.active) {
+      return;
+    }
+
     if (!this.created) {
       this.create();
       this.created = true;
@@ -62,6 +77,8 @@ export default class Scene {
   }
 
   stop(): void {
+    this.active = false;
+
     if (this.frameId !== undefined) {
       cancelAnimationFrame(this.frameId);
       this.frameId = undefined;
@@ -72,13 +89,19 @@ export default class Scene {
 
   destroy(): void {
     this.stop();
-    this.entities.clear();
+    this.entities.destroy();
     for (const controller of this.controllers) {
       controller.detach();
     }
   }
 
   private readonly step = (time: number): void => {
+    this.frameId = undefined;
+
+    if (!this.active) {
+      return;
+    }
+
     const delta = this.lastTime === undefined ? 0 : time - this.lastTime;
     this.lastTime = time;
 
@@ -86,10 +109,22 @@ export default class Scene {
       controller.update(time, delta);
     }
 
+    if (!this.active) {
+      return;
+    }
+
     this.update(time, delta);
+
+    if (!this.active) {
+      return;
+    }
+
     this.entities.update(time, delta);
     this.game.renderer.clear(this.backgroundColor);
     this.entities.render(this.game.renderer);
-    this.frameId = requestAnimationFrame(this.step);
+
+    if (this.active) {
+      this.frameId = requestAnimationFrame(this.step);
+    }
   };
 }
