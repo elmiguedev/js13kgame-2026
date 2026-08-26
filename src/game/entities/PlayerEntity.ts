@@ -1,21 +1,93 @@
 import type Player from "../domain/Player";
-import Sprite from "../../lib/entities/Sprite";
+import PixelSprite from "../../lib/entities/PixelSprite";
 
-export default class PlayerEntity extends Sprite {
+export default class PlayerEntity extends PixelSprite {
+  private idleDelay = 0;
+
   constructor(player: Player) {
     super({
       id: `player-${player.id}`,
       x: player.position.x,
       y: player.position.y,
-      width: 12,
-      height: 12,
-      color: PlayerEntity.getColor(player.id),
+      palette: {
+        1: PlayerEntity.getColor(player.id)
+      },
+      pixels: [
+        [1, 1, 1, 1, 1],
+        [1, 0, 1, 0, 1],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1]
+      ],
+      pixelSize: 2,
+      animations: {
+        idle: {
+          frames: [
+            [
+              [0, 0, 0, 0, 0],
+              [1, 1, 1, 1, 1],
+              [1, 0, 1, 0, 1],
+              [1, 1, 1, 1, 1],
+              [1, 1, 1, 1, 1],
+              [1, 0, 0, 0, 1],
+            ],
+            [
+              [1, 1, 1, 1, 1],
+              [1, 0, 1, 0, 1],
+              [1, 1, 1, 1, 1],
+              [1, 1, 1, 1, 1],
+              [1, 0, 0, 0, 1],
+              [1, 0, 0, 0, 1],
+            ],
+          ],
+          frameDuration: 300,
+          loop: true,
+        },
+        walk: {
+          frames: [
+            [
+              [1, 1, 1, 1, 1],
+              [1, 0, 1, 0, 1],
+              [1, 1, 1, 1, 1],
+              [1, 1, 1, 1, 1],
+              [1, 0, 0, 0, 1],
+              [0, 1, 0, 1, 0],
+            ],
+            [
+              [1, 1, 1, 1, 1],
+              [1, 0, 1, 0, 1],
+              [1, 1, 1, 1, 1],
+              [1, 1, 1, 1, 1],
+              [1, 0, 0, 0, 1],
+              [1, 0, 1, 0, 1],
+            ],
+          ],
+          frameDuration: 120,
+          loop: true,
+        },
+      },
     });
+    this.anims.play("idle");
   }
 
   sync(player: Player): void {
+    if (this.position.x !== player.position.x || this.position.y !== player.position.y) {
+      this.idleDelay = 120;
+      this.anims.play("walk");
+    }
     this.position.x = player.position.x;
     this.position.y = player.position.y;
+  }
+
+  override update(time: number, delta: number): void {
+    super.update(time, delta);
+    if (this.idleDelay > 0) {
+      this.idleDelay -= delta;
+      if (this.idleDelay <= 0) {
+        this.anims.play("idle");
+      }
+    }
   }
 
   private static getColor(id: string): string {

@@ -1,4 +1,5 @@
 import type GameObject from "../Object";
+import PixelSprite from "../entities/PixelSprite";
 import type Renderer from "./Renderer";
 
 export interface CanvasRendererConfig {
@@ -26,7 +27,37 @@ export default class CanvasRenderer implements Renderer {
   }
 
   render(object: GameObject): void {
-    object.render(this.context);
+    if (object instanceof PixelSprite) {
+      this.renderPixelSprite(object);
+    } else {
+      object.render(this.context);
+    }
+  }
+
+  renderPixelSprite(sprite: PixelSprite): void {
+    const x = Math.round(sprite.position.x);
+    const y = Math.round(sprite.position.y);
+    let currentColor: string | undefined;
+
+    for (const [rowIndex, row] of sprite.pixels.entries()) {
+      for (const [columnIndex, paletteIndex] of row.entries()) {
+        const color = sprite.palette[paletteIndex];
+        if (color === undefined) {
+          continue;
+        }
+
+        if (color !== currentColor) {
+          this.context.fillStyle = color;
+          currentColor = color;
+        }
+        this.context.fillRect(
+          x + columnIndex * sprite.pixelSize,
+          y + rowIndex * sprite.pixelSize,
+          sprite.pixelSize,
+          sprite.pixelSize,
+        );
+      }
+    }
   }
 
   pushTransform(x: number, y: number): void {

@@ -1,15 +1,23 @@
 import type Enemy from "../domain/Enemy";
-import Sprite from "../../lib/entities/Sprite";
+import PixelSprite from "../../lib/entities/PixelSprite";
 
-export default class EnemyEntity extends Sprite {
+export default class EnemyEntity extends PixelSprite {
   constructor(enemy: Enemy) {
     super({
       id: `enemy-${enemy.id}`,
       x: enemy.position.x,
       y: enemy.position.y,
-      width: 12,
-      height: 12,
-      color: "#00ff00",
+      palette: {
+        1: "#FFFFFF"
+      },
+      pixels: [
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+        [1, 0, 1, 0, 1],
+        [1, 0, 1, 0, 1]
+      ],
+      pixelSize: 2
     });
   }
 
