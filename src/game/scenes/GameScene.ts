@@ -33,8 +33,12 @@ export default class GameScene extends RoomScene {
     this.room.update(delta);
   }
 
-  override handleClick(position: Position, _clickedObject: GameObject | undefined): void {
-    this.room.moveTo(position.x, position.y);
+  override handleClick(position: Position, clickedObject: GameObject | undefined): void {
+    if (clickedObject instanceof EnemyEntity) {
+      this.room.attack(clickedObject.id.slice("enemy-".length));
+    } else {
+      this.room.moveTo(position.x, position.y);
+    }
   }
 
   private readonly handleRoomEvent = (event: RoomEvent): void => {

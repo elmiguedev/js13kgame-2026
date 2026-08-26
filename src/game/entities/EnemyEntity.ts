@@ -11,6 +11,7 @@ export default class EnemyEntity extends PixelSprite {
       id: `enemy-${enemy.id}`,
       x: enemy.position.x,
       y: enemy.position.y,
+      onClick: () => {},
       palette: {
         1: "#FFFFFF"
       },

@@ -10,6 +10,7 @@ const MAX_PLAYERS = 4;
 const ENEMY_AGGRO_DISTANCE = 100;
 const ENEMY_RELEASE_DISTANCE = 150;
 const ENEMY_SPEED = 45;
+const ATTACK_RANGE = 24;
 const PLAYER_SPEED = 90;
 const TOTEM_MAX_ENEMIES = 6;
 const TOTEM_SPAWN_INTERVAL = 750;
@@ -166,6 +167,21 @@ export default class RoomController {
     }
   }
 
+  attack(enemyId: string): void {
+    if (!this.clientId || !this.enemyMap.has(enemyId)) {
+      return;
+    }
+
+    const action = `k|${this.clientId}|${enemyId}`;
+    if (this.isHost) {
+      if (this.socket.send(action)) {
+        this.applyAttack(this.clientId, enemyId);
+      }
+    } else if (this.hostId) {
+      this.socket.sendTo(this.hostId, action);
+    }
+  }
+
   update(delta: number): void {
     if (!this.started || !Number.isFinite(delta)) {
       return;
@@ -254,6 +270,11 @@ export default class RoomController {
       if (id !== this.clientId) {
         this.applyMoveTarget(id, Number(sequence), Number(x), Number(y));
       }
+    } else if (type === "k" && value && this.isHost) {
+      const [id, enemyId] = value.split("|");
+      if (id !== this.clientId) {
+        this.applyAttack(id, enemyId);
+      }
     } else if (type === "s") {
       this.started = true;
       this.emit({ type: "started" });
@@ -298,6 +319,26 @@ export default class RoomController {
     } else {
       this.emitStateChange();
     }
+  }
+
+  private applyAttack(playerId: string | undefined, enemyId: string | undefined): void {
+    const player = playerId ? this.playerMap.get(playerId) : undefined;
+    if (!player || !enemyId) {
+      return;
+    }
+
+    const enemy = this.enemyMap.get(enemyId);
+    const distance = enemy ? this.getDistance(enemy, player) : undefined;
+    if (!enemy || distance === undefined || distance > ATTACK_RANGE) {
+      return;
+    }
+
+    enemy.hp -= 1;
+    if (enemy.hp <= 0) {
+      this.enemyMap.delete(enemy.id);
+      this.enemyTargets.delete(enemy.id);
+    }
+    this.markStateChanged();
   }
 
   private markStateChanged(): void {
@@ -347,11 +388,11 @@ export default class RoomController {
   }
 
   private serializePlayers(): string {
-    return Array.from(this.playerMap.values(), ({ id, position }) => `${id},${position.x},${position.y}`).join(";");
+    return Array.from(this.playerMap.values(), ({ id, hp, position }) => `${id},${position.x},${position.y},${hp}`).join(";");
   }
 
   private serializeEnemies(): string {
-    return Array.from(this.enemyMap.values(), ({ id, totemId, position }) => `${id},${totemId},${position.x},${position.y}`).join(";");
+    return Array.from(this.enemyMap.values(), ({ id, totemId, hp, position }) => `${id},${totemId},${position.x},${position.y},${hp}`).join(";");
   }
 
   private serializeTotems(): string {
@@ -366,11 +407,12 @@ export default class RoomController {
     }
 
     return value.split(";").flatMap((serializedEntity) => {
-      const [id, x, y] = serializedEntity.split(",");
+      const [id, x, y, hp] = serializedEntity.split(",");
       const positionX = Number(x);
       const positionY = Number(y);
-      return id && Number.isFinite(positionX) && Number.isFinite(positionY)
-        ? [{ id, position: { x: positionX, y: positionY } }]
+      const health = Number(hp);
+      return id && Number.isFinite(positionX) && Number.isFinite(positionY) && Number.isFinite(health)
+        ? [{ id, hp: health, position: { x: positionX, y: positionY } }]
         : [];
     });
   }
@@ -381,11 +423,12 @@ export default class RoomController {
     }
 
     return value.split(";").flatMap((serializedEntity) => {
-      const [id, totemId, x, y] = serializedEntity.split(",");
+      const [id, totemId, x, y, hp] = serializedEntity.split(",");
       const positionX = Number(x);
       const positionY = Number(y);
-      return id && totemId && Number.isFinite(positionX) && Number.isFinite(positionY)
-        ? [{ id, totemId, position: { x: positionX, y: positionY } }]
+      const health = Number(hp);
+      return id && totemId && Number.isFinite(positionX) && Number.isFinite(positionY) && Number.isFinite(health)
+        ? [{ id, totemId, hp: health, position: { x: positionX, y: positionY } }]
         : [];
     });
   }
@@ -552,7 +595,10 @@ export default class RoomController {
         continue;
       }
 
-      const movement = Math.min(distanceToMove, distance);
+      const movement = Math.min(distanceToMove, Math.max(0, distance - 16));
+      if (movement === 0) {
+        continue;
+      }
       enemy.position.x += x / distance * movement;
       enemy.position.y += y / distance * movement;
       movedEnemies = true;
@@ -578,6 +624,7 @@ export default class RoomController {
     this.enemyMap.set(id, {
       id,
       totemId: totem.id,
+      hp: 1,
       position: {
         x: totem.position.x + Math.cos(angle) * distance,
         y: totem.position.y + Math.sin(angle) * distance,
@@ -600,6 +647,7 @@ export default class RoomController {
 
     return {
       id,
+      hp: 100,
       position: {
         x: 20 + ((hash >>> 0) % 80),
         y: 20 + ((hash >>> 8) % 80),
@@ -660,12 +708,14 @@ export default class RoomController {
 
   private readonly copyPlayer = (player: Player): Player => ({
     id: player.id,
+    hp: player.hp,
     position: { ...player.position },
   });
 
   private readonly copyEnemy = (enemy: Enemy): Enemy => ({
     id: enemy.id,
     totemId: enemy.totemId,
+    hp: enemy.hp,
     position: { ...enemy.position },
   });
 
