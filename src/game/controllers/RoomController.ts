@@ -7,8 +7,8 @@ import SocketController, { type SocketEvent } from "../../lib/controllers/Socket
 const RELAY_URL = "wss://relay.js13kgames.com/rainbow-renegades";
 const ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const MAX_PLAYERS = 4;
-const ENEMY_AGGRO_DISTANCE = 32;
-const ENEMY_RELEASE_DISTANCE = 40;
+const ENEMY_AGGRO_DISTANCE = 100;
+const ENEMY_RELEASE_DISTANCE = 150;
 const ENEMY_SPEED = 45;
 const TOTEM_MAX_ENEMIES = 6;
 const TOTEM_SPAWN_INTERVAL = 750;
@@ -131,6 +131,14 @@ export default class RoomController {
       spawnRadius: TOTEM_SPAWN_RADIUS,
     });
     this.totemSpawnTimers.set("totem-1", TOTEM_SPAWN_INTERVAL);
+    this.totemMap.set("totem-2", {
+      id: "totem-2",
+      position: { x: 157, y: 305 },
+      maxEnemies: TOTEM_MAX_ENEMIES,
+      spawnInterval: TOTEM_SPAWN_INTERVAL,
+      spawnRadius: TOTEM_SPAWN_RADIUS,
+    });
+    this.totemSpawnTimers.set("totem-2", TOTEM_SPAWN_INTERVAL);
     this.markStateChanged();
     this.flushState();
     this.socket.send("s");
