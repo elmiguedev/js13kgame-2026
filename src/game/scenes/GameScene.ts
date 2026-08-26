@@ -2,12 +2,14 @@ import { Keys, type Key } from "../../lib/controllers/KeyboardController";
 import type { RoomEvent } from "../controllers/RoomController";
 import type GameState from "../domain/GameState";
 import EnemyEntity from "../entities/EnemyEntity";
+import EnemyTotemEntity from "../entities/EnemyTotemEntity";
 import PlayerEntity from "../entities/PlayerEntity";
 import RoomScene from "./RoomScene";
 
 export default class GameScene extends RoomScene {
   private readonly players = new Map<string, PlayerEntity>();
   private readonly enemies = new Map<string, EnemyEntity>();
+  private readonly totems = new Map<string, EnemyTotemEntity>();
   private keys!: {
     up: Key;
     down: Key;
@@ -74,6 +76,20 @@ export default class GameScene extends RoomScene {
       this.camera.startFollow(localPlayer);
     } else {
       this.camera.stopFollow();
+    }
+
+    const totemIds = new Set(state.totems.map((totem) => totem.id));
+    for (const [id, entity] of this.totems) {
+      if (!totemIds.has(id)) {
+        this.entities.remove(entity.id);
+        this.totems.delete(id);
+      }
+    }
+
+    for (const totem of state.totems) {
+      const entity = this.totems.get(totem.id) ?? this.entities.add(new EnemyTotemEntity(totem));
+      entity.sync(totem);
+      this.totems.set(totem.id, entity);
     }
 
     const enemyIds = new Set(state.enemies.map((enemy) => enemy.id));

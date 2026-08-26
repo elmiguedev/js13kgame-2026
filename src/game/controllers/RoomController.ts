@@ -1,5 +1,6 @@
 import type GameState from "../domain/GameState";
 import type Enemy from "../domain/Enemy";
+import type EnemyTotem from "../domain/EnemyTotem";
 import type Player from "../domain/Player";
 import SocketController, { type SocketEvent } from "../../lib/controllers/SocketController";
 
@@ -9,6 +10,10 @@ const MAX_PLAYERS = 4;
 const ENEMY_AGGRO_DISTANCE = 32;
 const ENEMY_RELEASE_DISTANCE = 40;
 const ENEMY_SPEED = 45;
+const TOTEM_MAX_ENEMIES = 6;
+const TOTEM_SPAWN_INTERVAL = 750;
+const TOTEM_SPAWN_RADIUS = 28;
+const STATE_BROADCAST_INTERVAL = 50;
 
 export type RoomPlayer = Player;
 
@@ -33,7 +38,9 @@ export default class RoomController {
   private readonly stateListeners = new Set<(state: GameState) => void>();
   private readonly playerMap = new Map<string, Player>();
   private readonly enemyMap = new Map<string, Enemy>();
+  private readonly totemMap = new Map<string, EnemyTotem>();
   private readonly enemyTargets = new Map<string, string>();
+  private readonly totemSpawnTimers = new Map<string, number>();
   private role: "host" | "guest" | undefined;
   private clientId: string | undefined;
   private hostId: string | undefined;
@@ -43,6 +50,9 @@ export default class RoomController {
   private inputSequence = 0;
   private pendingMoves: PendingMove[] = [];
   private readonly acknowledgements = new Map<string, number>();
+  private nextEnemyId = 0;
+  private stateDirty = false;
+  private stateBroadcastTimer = 0;
 
   static getInstance(): RoomController {
     return this.instance ??= new RoomController();
@@ -77,6 +87,7 @@ export default class RoomController {
     return {
       players: Array.from(this.playerMap.values(), this.copyPlayer),
       enemies: Array.from(this.enemyMap.values(), this.copyEnemy),
+      totems: Array.from(this.totemMap.values(), this.copyTotem),
     };
   }
 
@@ -112,9 +123,16 @@ export default class RoomController {
     }
 
     this.started = true;
-    this.enemyMap.set("enemy-1", { id: "enemy-1", position: { x: 42, y: 42 } });
-    this.enemyMap.set("enemy-2", { id: "enemy-2", position: { x: 82, y: 82 } });
-    this.broadcastState();
+    this.totemMap.set("totem-1", {
+      id: "totem-1",
+      position: { x: 57, y: 57 },
+      maxEnemies: TOTEM_MAX_ENEMIES,
+      spawnInterval: TOTEM_SPAWN_INTERVAL,
+      spawnRadius: TOTEM_SPAWN_RADIUS,
+    });
+    this.totemSpawnTimers.set("totem-1", TOTEM_SPAWN_INTERVAL);
+    this.markStateChanged();
+    this.flushState();
     this.socket.send("s");
     this.emit({ type: "started" });
   }
@@ -143,30 +161,16 @@ export default class RoomController {
       return;
     }
 
-    const distanceToMove = ENEMY_SPEED * Math.min(delta, 50) / 1000;
-    let stateChanged = false;
-
-    for (const enemy of this.enemyMap.values()) {
-      const target = this.getEnemyTarget(enemy);
-      if (!target) {
-        continue;
-      }
-
-      const x = target.position.x - enemy.position.x;
-      const y = target.position.y - enemy.position.y;
-      const distance = Math.hypot(x, y);
-      if (distance === 0) {
-        continue;
-      }
-
-      const movement = Math.min(distanceToMove, distance);
-      enemy.position.x += x / distance * movement;
-      enemy.position.y += y / distance * movement;
-      stateChanged = true;
+    const clampedDelta = Math.min(delta, 50);
+    const spawnedEnemies = this.updateTotems(clampedDelta);
+    const movedEnemies = this.updateEnemyAI(clampedDelta);
+    if (spawnedEnemies || movedEnemies) {
+      this.markStateChanged();
     }
 
-    if (stateChanged) {
-      this.broadcastState();
+    this.stateBroadcastTimer += clampedDelta;
+    if (this.stateDirty && this.stateBroadcastTimer >= STATE_BROADCAST_INTERVAL) {
+      this.flushState();
     }
   }
 
@@ -256,7 +260,9 @@ export default class RoomController {
       this.playerMap.set(id, this.createPlayer(id));
     }
     this.socket.sendTo(id, `a|${this.serializeState()}`);
-    this.broadcastState();
+    this.emit({ type: "players" });
+    this.markStateChanged();
+    this.flushState();
   }
 
   private applyInput(id: string | undefined, sequence: number, x: number, y: number): void {
@@ -270,7 +276,7 @@ export default class RoomController {
     if (sequence > 0 && id) {
       this.acknowledgements.set(id, sequence);
     }
-    this.broadcastState();
+    this.markStateChanged();
   }
 
   private applyPrediction(x: number, y: number): void {
@@ -284,26 +290,37 @@ export default class RoomController {
     this.emitStateChange();
   }
 
-  private broadcastState(): void {
-    this.socket.send(`g|${this.serializeState()}`);
-    this.emit({ type: "players" });
+  private markStateChanged(): void {
+    this.stateDirty = true;
     this.emitStateChange();
   }
 
+  private flushState(): void {
+    this.socket.send(`g|${this.serializeState()}`);
+    this.stateDirty = false;
+    this.stateBroadcastTimer = 0;
+  }
+
   private applySerializedState(serializedState: string): void {
-    const [players = "", enemies = "", acknowledgements = ""] = serializedState.split("|");
+    const [players = "", enemies = "", totems = "", acknowledgements = ""] = serializedState.split("|");
     const state = {
-      players: this.parseEntities(players),
-      enemies: this.parseEntities(enemies),
+      players: this.parsePlayers(players),
+      enemies: this.parseEnemies(enemies),
+      totems: this.parseTotems(totems),
     };
 
     this.playerMap.clear();
     this.enemyMap.clear();
+    this.totemMap.clear();
+    this.enemyTargets.clear();
     for (const player of state.players) {
       this.playerMap.set(player.id, player);
     }
     for (const enemy of state.enemies) {
       this.enemyMap.set(enemy.id, enemy);
+    }
+    for (const totem of state.totems) {
+      this.totemMap.set(totem.id, totem);
     }
     this.reconcilePrediction(this.parseAcknowledgements(acknowledgements));
     this.emit({ type: "players" });
@@ -311,14 +328,24 @@ export default class RoomController {
   }
 
   private serializeState(): string {
-    return `${this.serializeEntities(this.playerMap.values())}|${this.serializeEntities(this.enemyMap.values())}|${this.serializeAcknowledgements()}`;
+    return `${this.serializePlayers()}|${this.serializeEnemies()}|${this.serializeTotems()}|${this.serializeAcknowledgements()}`;
   }
 
-  private serializeEntities(entities: Iterable<Player | Enemy>): string {
-    return Array.from(entities, ({ id, position }) => `${id},${position.x},${position.y}`).join(";");
+  private serializePlayers(): string {
+    return Array.from(this.playerMap.values(), ({ id, position }) => `${id},${position.x},${position.y}`).join(";");
   }
 
-  private parseEntities(value: string): Array<Player | Enemy> {
+  private serializeEnemies(): string {
+    return Array.from(this.enemyMap.values(), ({ id, totemId, position }) => `${id},${totemId},${position.x},${position.y}`).join(";");
+  }
+
+  private serializeTotems(): string {
+    return Array.from(this.totemMap.values(), ({ id, position, maxEnemies, spawnInterval, spawnRadius }) => (
+      `${id},${position.x},${position.y},${maxEnemies},${spawnInterval},${spawnRadius}`
+    )).join(";");
+  }
+
+  private parsePlayers(value: string): Player[] {
     if (!value) {
       return [];
     }
@@ -329,6 +356,40 @@ export default class RoomController {
       const positionY = Number(y);
       return id && Number.isFinite(positionX) && Number.isFinite(positionY)
         ? [{ id, position: { x: positionX, y: positionY } }]
+        : [];
+    });
+  }
+
+  private parseEnemies(value: string): Enemy[] {
+    if (!value) {
+      return [];
+    }
+
+    return value.split(";").flatMap((serializedEntity) => {
+      const [id, totemId, x, y] = serializedEntity.split(",");
+      const positionX = Number(x);
+      const positionY = Number(y);
+      return id && totemId && Number.isFinite(positionX) && Number.isFinite(positionY)
+        ? [{ id, totemId, position: { x: positionX, y: positionY } }]
+        : [];
+    });
+  }
+
+  private parseTotems(value: string): EnemyTotem[] {
+    if (!value) {
+      return [];
+    }
+
+    return value.split(";").flatMap((serializedTotem) => {
+      const [id, x, y, maxEnemies, spawnInterval, spawnRadius] = serializedTotem.split(",");
+      const positionX = Number(x);
+      const positionY = Number(y);
+      const max = Number(maxEnemies);
+      const interval = Number(spawnInterval);
+      const radius = Number(spawnRadius);
+      return id && Number.isFinite(positionX) && Number.isFinite(positionY) && Number.isFinite(max)
+        && Number.isFinite(interval) && Number.isFinite(radius)
+        ? [{ id, position: { x: positionX, y: positionY }, maxEnemies: max, spawnInterval: interval, spawnRadius: radius }]
         : [];
     });
   }
@@ -375,7 +436,9 @@ export default class RoomController {
 
     if (this.playerMap.delete(id)) {
       if (this.isHost) {
-        this.broadcastState();
+        this.emit({ type: "players" });
+        this.markStateChanged();
+        this.flushState();
       } else {
         this.emit({ type: "players" });
         this.emitStateChange();
@@ -408,6 +471,80 @@ export default class RoomController {
 
     this.enemyTargets.delete(enemy.id);
     return undefined;
+  }
+
+  private updateTotems(delta: number): boolean {
+    let spawnedEnemies = false;
+
+    for (const totem of this.totemMap.values()) {
+      const activeEnemies = this.getTotemEnemyCount(totem.id);
+      if (activeEnemies >= totem.maxEnemies) {
+        this.totemSpawnTimers.set(totem.id, 0);
+        continue;
+      }
+
+      let timer = (this.totemSpawnTimers.get(totem.id) ?? 0) + delta;
+      let enemiesToSpawn = totem.maxEnemies - activeEnemies;
+      while (timer >= totem.spawnInterval && enemiesToSpawn > 0) {
+        timer -= totem.spawnInterval;
+        this.spawnEnemy(totem);
+        enemiesToSpawn -= 1;
+        spawnedEnemies = true;
+      }
+      this.totemSpawnTimers.set(totem.id, timer);
+    }
+
+    return spawnedEnemies;
+  }
+
+  private updateEnemyAI(delta: number): boolean {
+    const distanceToMove = ENEMY_SPEED * delta / 1000;
+    let movedEnemies = false;
+
+    for (const enemy of this.enemyMap.values()) {
+      const target = this.getEnemyTarget(enemy);
+      if (!target) {
+        continue;
+      }
+
+      const x = target.position.x - enemy.position.x;
+      const y = target.position.y - enemy.position.y;
+      const distance = Math.hypot(x, y);
+      if (distance === 0) {
+        continue;
+      }
+
+      const movement = Math.min(distanceToMove, distance);
+      enemy.position.x += x / distance * movement;
+      enemy.position.y += y / distance * movement;
+      movedEnemies = true;
+    }
+
+    return movedEnemies;
+  }
+
+  private getTotemEnemyCount(totemId: string): number {
+    let count = 0;
+    for (const enemy of this.enemyMap.values()) {
+      if (enemy.totemId === totemId) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  private spawnEnemy(totem: EnemyTotem): void {
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.sqrt(Math.random()) * totem.spawnRadius;
+    const id = `${totem.id}-${this.nextEnemyId++}`;
+    this.enemyMap.set(id, {
+      id,
+      totemId: totem.id,
+      position: {
+        x: totem.position.x + Math.cos(angle) * distance,
+        y: totem.position.y + Math.sin(angle) * distance,
+      },
+    });
   }
 
   private getDistance(first: Enemy, second: Player): number {
@@ -461,7 +598,12 @@ export default class RoomController {
     this.acknowledgements.clear();
     this.playerMap.clear();
     this.enemyMap.clear();
+    this.totemMap.clear();
     this.enemyTargets.clear();
+    this.totemSpawnTimers.clear();
+    this.nextEnemyId = 0;
+    this.stateDirty = false;
+    this.stateBroadcastTimer = 0;
   }
 
   private emitStateChange(): void {
@@ -484,6 +626,15 @@ export default class RoomController {
 
   private readonly copyEnemy = (enemy: Enemy): Enemy => ({
     id: enemy.id,
+    totemId: enemy.totemId,
     position: { ...enemy.position },
+  });
+
+  private readonly copyTotem = (totem: EnemyTotem): EnemyTotem => ({
+    id: totem.id,
+    position: { ...totem.position },
+    maxEnemies: totem.maxEnemies,
+    spawnInterval: totem.spawnInterval,
+    spawnRadius: totem.spawnRadius,
   });
 }
