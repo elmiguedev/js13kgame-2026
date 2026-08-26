@@ -1,8 +1,11 @@
 import type Player from "../domain/Player";
+import type Position from "../../lib/common/Position";
+import smoothPosition from "../../lib/common/smoothPosition";
 import PixelSprite from "../../lib/entities/PixelSprite";
 
 export default class PlayerEntity extends PixelSprite {
   private idleDelay = 0;
+  private readonly targetPosition: Position;
 
   constructor(player: Player) {
     super({
@@ -68,20 +71,26 @@ export default class PlayerEntity extends PixelSprite {
         },
       },
     });
+    this.targetPosition = { ...player.position };
     this.anims.play("idle");
   }
 
-  sync(player: Player): void {
-    if (this.position.x !== player.position.x || this.position.y !== player.position.y) {
+  sync(player: Player, immediate = false): void {
+    if (this.targetPosition.x !== player.position.x || this.targetPosition.y !== player.position.y) {
       this.idleDelay = 120;
       this.anims.play("walk");
     }
-    this.position.x = player.position.x;
-    this.position.y = player.position.y;
+    this.targetPosition.x = player.position.x;
+    this.targetPosition.y = player.position.y;
+    if (immediate) {
+      this.position.x = player.position.x;
+      this.position.y = player.position.y;
+    }
   }
 
   override update(time: number, delta: number): void {
     super.update(time, delta);
+    smoothPosition(this.position, this.targetPosition, delta, 14);
     if (this.idleDelay > 0) {
       this.idleDelay -= delta;
       if (this.idleDelay <= 0) {

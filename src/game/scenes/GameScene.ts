@@ -56,6 +56,7 @@ export default class GameScene extends RoomScene {
   };
 
   private readonly syncState = (state: GameState): void => {
+    const localPlayerId = this.room.localPlayerId;
     const playerIds = new Set(state.players.map((player) => player.id));
     for (const [id, entity] of this.players) {
       if (!playerIds.has(id)) {
@@ -66,11 +67,10 @@ export default class GameScene extends RoomScene {
 
     for (const player of state.players) {
       const entity = this.players.get(player.id) ?? this.entities.add(new PlayerEntity(player));
-      entity.sync(player);
+      entity.sync(player, player.id === localPlayerId);
       this.players.set(player.id, entity);
     }
 
-    const localPlayerId = this.room.localPlayerId;
     const localPlayer = localPlayerId ? this.players.get(localPlayerId) : undefined;
     if (localPlayer) {
       this.camera.startFollow(localPlayer);

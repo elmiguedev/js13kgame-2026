@@ -1,7 +1,11 @@
 import type Enemy from "../domain/Enemy";
+import type Position from "../../lib/common/Position";
+import smoothPosition from "../../lib/common/smoothPosition";
 import PixelSprite from "../../lib/entities/PixelSprite";
 
 export default class EnemyEntity extends PixelSprite {
+  private readonly targetPosition: Position;
+
   constructor(enemy: Enemy) {
     super({
       id: `enemy-${enemy.id}`,
@@ -19,10 +23,16 @@ export default class EnemyEntity extends PixelSprite {
       ],
       pixelSize: 2
     });
+    this.targetPosition = { ...enemy.position };
   }
 
   sync(enemy: Enemy): void {
-    this.position.x = enemy.position.x;
-    this.position.y = enemy.position.y;
+    this.targetPosition.x = enemy.position.x;
+    this.targetPosition.y = enemy.position.y;
+  }
+
+  override update(time: number, delta: number): void {
+    super.update(time, delta);
+    smoothPosition(this.position, this.targetPosition, delta, 12);
   }
 }
