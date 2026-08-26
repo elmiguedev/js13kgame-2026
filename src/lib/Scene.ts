@@ -5,6 +5,7 @@ import InputController from "./controllers/InputController";
 import type SceneController from "./controllers/SceneController";
 import type Game from "./Game";
 import type GameObject from "./Object";
+import type Position from "./common/Position";
 
 export default class Scene {
   readonly entities = new EntityController();
@@ -41,6 +42,8 @@ export default class Scene {
   create(): void {}
 
   update(_time: number, _delta: number): void {}
+
+  handleClick(_position: Position, _clickedObject: GameObject | undefined): void {}
 
   addController<T extends Controller>(controller: T): T {
     this.controllers.add(controller);
@@ -123,12 +126,14 @@ export default class Scene {
 
     const click = this.input.mouse.consumeClick();
     if (click) {
-      const clickedObject = this.entities.click(this.camera.screenToWorld(click));
+      const worldClick = this.camera.screenToWorld(click);
+      const clickedObject = this.entities.click(worldClick);
       if (clickedObject !== this.focusedObject) {
         this.focusedObject?.blur();
         this.focusedObject = clickedObject;
         this.focusedObject?.focus();
       }
+      this.handleClick(worldClick, clickedObject);
     }
 
     for (const key of this.input.keyboard.consumeKeyPresses()) {

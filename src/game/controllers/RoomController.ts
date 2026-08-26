@@ -10,6 +10,7 @@ const MAX_PLAYERS = 4;
 const ENEMY_AGGRO_DISTANCE = 100;
 const ENEMY_RELEASE_DISTANCE = 150;
 const ENEMY_SPEED = 45;
+const PLAYER_SPEED = 90;
 const TOTEM_MAX_ENEMIES = 6;
 const TOTEM_SPAWN_INTERVAL = 750;
 const TOTEM_SPAWN_RADIUS = 28;
@@ -40,6 +41,7 @@ export default class RoomController {
   private readonly enemyMap = new Map<string, Enemy>();
   private readonly totemMap = new Map<string, EnemyTotem>();
   private readonly enemyTargets = new Map<string, string>();
+  private readonly playerTargets = new Map<string, { x: number; y: number }>();
   private readonly totemSpawnTimers = new Map<string, number>();
   private role: "host" | "guest" | undefined;
   private clientId: string | undefined;
@@ -145,34 +147,42 @@ export default class RoomController {
     this.emit({ type: "started" });
   }
 
-  move(x: number, y: number): void {
+  moveTo(x: number, y: number): void {
     if (!this.clientId || !Number.isFinite(x) || !Number.isFinite(y)) {
       return;
     }
 
     const sequence = this.isHost ? 0 : ++this.inputSequence;
-    const input = `i|${this.clientId}|${sequence}|${x}|${y}`;
+    const input = `m|${this.clientId}|${sequence}|${x}|${y}`;
     if (this.isHost) {
       if (this.socket.send(input)) {
-        this.applyInput(this.clientId, sequence, x, y);
+        this.applyMoveTarget(this.clientId, sequence, x, y);
       }
     } else if (this.hostId) {
       if (this.socket.sendTo(this.hostId, input)) {
         this.pendingMoves.push({ sequence, x, y });
-        this.applyPrediction(x, y);
+        this.applyMoveTarget(this.clientId, sequence, x, y);
       }
     }
   }
 
   update(delta: number): void {
-    if (!this.isHost || !this.started || !Number.isFinite(delta)) {
+    if (!this.started || !Number.isFinite(delta)) {
       return;
     }
 
     const clampedDelta = Math.min(delta, 50);
+    const movedPlayers = this.updatePlayers(clampedDelta);
+    if (!this.isHost) {
+      if (movedPlayers) {
+        this.emitStateChange();
+      }
+      return;
+    }
+
     const spawnedEnemies = this.updateTotems(clampedDelta);
     const movedEnemies = this.updateEnemyAI(clampedDelta);
-    if (spawnedEnemies || movedEnemies) {
+    if (movedPlayers || spawnedEnemies || movedEnemies) {
       this.markStateChanged();
     }
 
@@ -239,10 +249,10 @@ export default class RoomController {
       this.emit({ type: "ready" });
     } else if (type === "g" && value && !this.isHost) {
       this.applySerializedState(value);
-    } else if (type === "i" && value && this.isHost) {
+    } else if (type === "m" && value && this.isHost) {
       const [id, sequence, x, y] = value.split("|");
       if (id !== this.clientId) {
-        this.applyInput(id, Number(sequence), Number(x), Number(y));
+        this.applyMoveTarget(id, Number(sequence), Number(x), Number(y));
       }
     } else if (type === "s") {
       this.started = true;
@@ -273,29 +283,21 @@ export default class RoomController {
     this.flushState();
   }
 
-  private applyInput(id: string | undefined, sequence: number, x: number, y: number): void {
+  private applyMoveTarget(id: string | undefined, sequence: number, x: number, y: number): void {
     const player = id ? this.playerMap.get(id) : undefined;
     if (!player || !Number.isFinite(x) || !Number.isFinite(y)) {
       return;
     }
 
-    player.position.x += Math.max(-1, Math.min(1, x)) * 2;
-    player.position.y += Math.max(-1, Math.min(1, y)) * 2;
+    this.playerTargets.set(player.id, { x, y });
     if (sequence > 0 && id) {
       this.acknowledgements.set(id, sequence);
     }
-    this.markStateChanged();
-  }
-
-  private applyPrediction(x: number, y: number): void {
-    const player = this.clientId ? this.playerMap.get(this.clientId) : undefined;
-    if (!player) {
-      return;
+    if (this.isHost) {
+      this.markStateChanged();
+    } else {
+      this.emitStateChange();
     }
-
-    player.position.x += Math.max(-1, Math.min(1, x)) * 2;
-    player.position.y += Math.max(-1, Math.min(1, y)) * 2;
-    this.emitStateChange();
   }
 
   private markStateChanged(): void {
@@ -329,6 +331,11 @@ export default class RoomController {
     }
     for (const totem of state.totems) {
       this.totemMap.set(totem.id, totem);
+    }
+    for (const id of this.playerTargets.keys()) {
+      if (!this.playerMap.has(id)) {
+        this.playerTargets.delete(id);
+      }
     }
     this.reconcilePrediction(this.parseAcknowledgements(acknowledgements));
     this.emit({ type: "players" });
@@ -424,15 +431,6 @@ export default class RoomController {
       this.pendingMoves = this.pendingMoves.filter((move) => move.sequence > acknowledgedSequence);
     }
 
-    const player = this.clientId ? this.playerMap.get(this.clientId) : undefined;
-    if (!player) {
-      return;
-    }
-
-    for (const move of this.pendingMoves) {
-      player.position.x += move.x * 2;
-      player.position.y += move.y * 2;
-    }
   }
 
   private handleDisconnect(id: string): void {
@@ -443,6 +441,7 @@ export default class RoomController {
     }
 
     if (this.playerMap.delete(id)) {
+      this.playerTargets.delete(id);
       if (this.isHost) {
         this.emit({ type: "players" });
         this.markStateChanged();
@@ -503,6 +502,37 @@ export default class RoomController {
     }
 
     return spawnedEnemies;
+  }
+
+  private updatePlayers(delta: number): boolean {
+    const distanceToMove = PLAYER_SPEED * delta / 1000;
+    let movedPlayers = false;
+
+    for (const [id, target] of this.playerTargets) {
+      const player = this.playerMap.get(id);
+      if (!player) {
+        this.playerTargets.delete(id);
+        continue;
+      }
+
+      const x = target.x - player.position.x;
+      const y = target.y - player.position.y;
+      const distance = Math.hypot(x, y);
+      if (distance === 0) {
+        this.playerTargets.delete(id);
+        continue;
+      }
+
+      const movement = Math.min(distanceToMove, distance);
+      player.position.x += x / distance * movement;
+      player.position.y += y / distance * movement;
+      movedPlayers = true;
+      if (movement === distance) {
+        this.playerTargets.delete(id);
+      }
+    }
+
+    return movedPlayers;
   }
 
   private updateEnemyAI(delta: number): boolean {
@@ -608,6 +638,7 @@ export default class RoomController {
     this.enemyMap.clear();
     this.totemMap.clear();
     this.enemyTargets.clear();
+    this.playerTargets.clear();
     this.totemSpawnTimers.clear();
     this.nextEnemyId = 0;
     this.stateDirty = false;

@@ -1,4 +1,5 @@
-import { Keys, type Key } from "../../lib/controllers/KeyboardController";
+import type Position from "../../lib/common/Position";
+import type GameObject from "../../lib/Object";
 import type { RoomEvent } from "../controllers/RoomController";
 import type GameState from "../domain/GameState";
 import EnemyEntity from "../entities/EnemyEntity";
@@ -10,12 +11,6 @@ export default class GameScene extends RoomScene {
   private readonly players = new Map<string, PlayerEntity>();
   private readonly enemies = new Map<string, EnemyEntity>();
   private readonly totems = new Map<string, EnemyTotemEntity>();
-  private keys!: {
-    up: Key;
-    down: Key;
-    left: Key;
-    right: Key;
-  };
   private unsubscribe: (() => void) | undefined;
   private unsubscribeRoom: (() => void) | undefined;
 
@@ -24,12 +19,6 @@ export default class GameScene extends RoomScene {
   }
 
   override create(): void {
-    this.keys = {
-      up: this.input.keyboard.addKey(Keys.ARROW_UP),
-      down: this.input.keyboard.addKey(Keys.ARROW_DOWN),
-      left: this.input.keyboard.addKey(Keys.ARROW_LEFT),
-      right: this.input.keyboard.addKey(Keys.ARROW_RIGHT),
-    };
     this.syncState(this.room.state);
     this.unsubscribe = this.room.onStateChange(this.syncState);
     this.unsubscribeRoom = this.room.on(this.handleRoomEvent);
@@ -41,12 +30,11 @@ export default class GameScene extends RoomScene {
   }
 
   override update(_time: number, delta: number): void {
-    const x = (this.keys.right.isDown ? 1 : 0) - (this.keys.left.isDown ? 1 : 0);
-    const y = (this.keys.down.isDown ? 1 : 0) - (this.keys.up.isDown ? 1 : 0);
-    if (x || y) {
-      this.room.move(x, y);
-    }
     this.room.update(delta);
+  }
+
+  override handleClick(position: Position, _clickedObject: GameObject | undefined): void {
+    this.room.moveTo(position.x, position.y);
   }
 
   private readonly handleRoomEvent = (event: RoomEvent): void => {
