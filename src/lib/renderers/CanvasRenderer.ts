@@ -29,6 +29,15 @@ export default class CanvasRenderer implements Renderer {
     object.render(this.context);
   }
 
+  pushTransform(x: number, y: number): void {
+    this.context.save();
+    this.context.translate(x, y);
+  }
+
+  popTransform(): void {
+    this.context.restore();
+  }
+
   resize(width: number, height: number): void {
     this.canvas.width = width;
     this.canvas.height = height;

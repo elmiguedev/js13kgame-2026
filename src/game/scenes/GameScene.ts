@@ -68,6 +68,14 @@ export default class GameScene extends RoomScene {
       this.players.set(player.id, entity);
     }
 
+    const localPlayerId = this.room.localPlayerId;
+    const localPlayer = localPlayerId ? this.players.get(localPlayerId) : undefined;
+    if (localPlayer) {
+      this.camera.startFollow(localPlayer);
+    } else {
+      this.camera.stopFollow();
+    }
+
     const enemyIds = new Set(state.enemies.map((enemy) => enemy.id));
     for (const [id, entity] of this.enemies) {
       if (!enemyIds.has(id)) {

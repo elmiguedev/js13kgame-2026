@@ -65,6 +65,10 @@ export default class RoomController {
     return this.role === "host";
   }
 
+  get localPlayerId(): string | undefined {
+    return this.clientId;
+  }
+
   get players(): readonly RoomPlayer[] {
     return this.state.players;
   }

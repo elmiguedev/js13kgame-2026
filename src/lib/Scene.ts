@@ -1,3 +1,4 @@
+import CameraController from "./controllers/CameraController";
 import Controller from "./controllers/Controller";
 import EntityController from "./controllers/EntityController";
 import InputController from "./controllers/InputController";
@@ -8,6 +9,7 @@ import type GameObject from "./Object";
 export default class Scene {
   readonly entities = new EntityController();
   readonly input = new InputController();
+  readonly camera = new CameraController();
   backgroundColor = "#000000";
   private readonly controllers = new Set<Controller>();
   private gameInstance: Game | undefined;
@@ -19,6 +21,7 @@ export default class Scene {
 
   constructor(readonly key: string) {
     this.addController(this.input);
+    this.addController(this.camera);
   }
 
   get game(): Game {
@@ -120,7 +123,7 @@ export default class Scene {
 
     const click = this.input.mouse.consumeClick();
     if (click) {
-      const clickedObject = this.entities.click(click);
+      const clickedObject = this.entities.click(this.camera.screenToWorld(click));
       if (clickedObject !== this.focusedObject) {
         this.focusedObject?.blur();
         this.focusedObject = clickedObject;
@@ -140,7 +143,14 @@ export default class Scene {
 
     this.entities.update(time, delta);
     this.game.renderer.clear(this.backgroundColor);
+    const cameraOffset = this.camera.offset;
+    if (cameraOffset) {
+      this.game.renderer.pushTransform(cameraOffset.x, cameraOffset.y);
+    }
     this.entities.render(this.game.renderer);
+    if (cameraOffset) {
+      this.game.renderer.popTransform();
+    }
 
     if (this.active) {
       this.frameId = requestAnimationFrame(this.step);
