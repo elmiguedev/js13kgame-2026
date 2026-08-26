@@ -38,12 +38,13 @@ export default class GameScene extends RoomScene {
     this.unsubscribeRoom?.();
   }
 
-  override update(_time: number, _delta: number): void {
+  override update(_time: number, delta: number): void {
     const x = (this.keys.right.isDown ? 1 : 0) - (this.keys.left.isDown ? 1 : 0);
     const y = (this.keys.down.isDown ? 1 : 0) - (this.keys.up.isDown ? 1 : 0);
     if (x || y) {
       this.room.move(x, y);
     }
+    this.room.update(delta);
   }
 
   private readonly handleRoomEvent = (event: RoomEvent): void => {

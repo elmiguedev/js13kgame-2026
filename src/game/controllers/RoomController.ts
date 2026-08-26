@@ -6,6 +6,9 @@ import SocketController, { type SocketEvent } from "../../lib/controllers/Socket
 const RELAY_URL = "wss://relay.js13kgames.com/rainbow-renegades";
 const ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const MAX_PLAYERS = 4;
+const ENEMY_AGGRO_DISTANCE = 32;
+const ENEMY_RELEASE_DISTANCE = 40;
+const ENEMY_SPEED = 45;
 
 export type RoomPlayer = Player;
 
@@ -30,6 +33,7 @@ export default class RoomController {
   private readonly stateListeners = new Set<(state: GameState) => void>();
   private readonly playerMap = new Map<string, Player>();
   private readonly enemyMap = new Map<string, Enemy>();
+  private readonly enemyTargets = new Map<string, string>();
   private role: "host" | "guest" | undefined;
   private clientId: string | undefined;
   private hostId: string | undefined;
@@ -83,7 +87,9 @@ export default class RoomController {
   }
 
   create(): void {
-    this.open(this.generateCode(), "host");
+    const code = this.generateCode();
+    console.log(`Created room: ${code}`);
+    this.open(code, "host");
   }
 
   join(code: string): void {
@@ -102,7 +108,8 @@ export default class RoomController {
     }
 
     this.started = true;
-    this.enemyMap.set("enemy-1", { id: "enemy-1", position: { x: 58, y: 58 } });
+    this.enemyMap.set("enemy-1", { id: "enemy-1", position: { x: 42, y: 42 } });
+    this.enemyMap.set("enemy-2", { id: "enemy-2", position: { x: 82, y: 82 } });
     this.broadcastState();
     this.socket.send("s");
     this.emit({ type: "started" });
@@ -124,6 +131,38 @@ export default class RoomController {
         this.pendingMoves.push({ sequence, x, y });
         this.applyPrediction(x, y);
       }
+    }
+  }
+
+  update(delta: number): void {
+    if (!this.isHost || !this.started || !Number.isFinite(delta)) {
+      return;
+    }
+
+    const distanceToMove = ENEMY_SPEED * Math.min(delta, 50) / 1000;
+    let stateChanged = false;
+
+    for (const enemy of this.enemyMap.values()) {
+      const target = this.getEnemyTarget(enemy);
+      if (!target) {
+        continue;
+      }
+
+      const x = target.position.x - enemy.position.x;
+      const y = target.position.y - enemy.position.y;
+      const distance = Math.hypot(x, y);
+      if (distance === 0) {
+        continue;
+      }
+
+      const movement = Math.min(distanceToMove, distance);
+      enemy.position.x += x / distance * movement;
+      enemy.position.y += y / distance * movement;
+      stateChanged = true;
+    }
+
+    if (stateChanged) {
+      this.broadcastState();
     }
   }
 
@@ -340,6 +379,40 @@ export default class RoomController {
     }
   }
 
+  private getEnemyTarget(enemy: Enemy): Player | undefined {
+    const currentTarget = this.enemyTargets.get(enemy.id);
+    const currentPlayer = currentTarget ? this.playerMap.get(currentTarget) : undefined;
+
+    if (currentPlayer && this.getDistance(enemy, currentPlayer) <= ENEMY_RELEASE_DISTANCE) {
+      return currentPlayer;
+    }
+
+    let closestPlayer: Player | undefined;
+    let closestDistance = ENEMY_AGGRO_DISTANCE;
+    for (const player of this.playerMap.values()) {
+      const distance = this.getDistance(enemy, player);
+      if (distance <= closestDistance) {
+        closestPlayer = player;
+        closestDistance = distance;
+      }
+    }
+
+    if (closestPlayer) {
+      this.enemyTargets.set(enemy.id, closestPlayer.id);
+      return closestPlayer;
+    }
+
+    this.enemyTargets.delete(enemy.id);
+    return undefined;
+  }
+
+  private getDistance(first: Enemy, second: Player): number {
+    return Math.hypot(
+      second.position.x - first.position.x,
+      second.position.y - first.position.y,
+    );
+  }
+
   private createPlayer(id: string): Player {
     let hash = 0;
     for (let index = 0; index < id.length; index += 1) {
@@ -384,6 +457,7 @@ export default class RoomController {
     this.acknowledgements.clear();
     this.playerMap.clear();
     this.enemyMap.clear();
+    this.enemyTargets.clear();
   }
 
   private emitStateChange(): void {
