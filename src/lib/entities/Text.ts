@@ -1,16 +1,29 @@
 import type Position from "../common/Position";
-import GameObject from "../Object";
+import GameObject, { type ObjectConfig } from "../Object";
+
+export interface TextConfig extends Omit<ObjectConfig, "x" | "y"> {
+  color?: string;
+  fontSize?: number;
+}
 
 export default class Text extends GameObject {
-  readonly text: string;
-  color = "#ffffff";
-  fontSize = 8;
+  text: string;
+  color: string;
+  fontSize: number;
   private raster: HTMLCanvasElement | undefined;
   private rasterKey: string | undefined;
 
-  constructor(position: Position, text: string) {
-    super({ x: position.x, y: position.y });
+  constructor(position: Position, text: string, config: TextConfig = {}) {
+    const { color = "#ffffff", fontSize = 8, hitArea, ...objectConfig } = config;
+    super({
+      ...objectConfig,
+      x: position.x,
+      y: position.y,
+      hitArea: hitArea ?? { width: text.length * fontSize, height: fontSize },
+    });
     this.text = text;
+    this.color = color;
+    this.fontSize = fontSize;
   }
 
   override render(context: CanvasRenderingContext2D): void {
@@ -34,13 +47,16 @@ export default class Text extends GameObject {
     }
 
     context.font = font;
-    canvas.width = Math.ceil(context.measureText(this.text).width);
-    canvas.height = this.fontSize;
+    const lines = this.text.split("\n");
+    canvas.width = Math.max(1, Math.ceil(Math.max(...lines.map((line) => context.measureText(line).width))));
+    canvas.height = this.fontSize * lines.length;
 
     context.font = font;
     context.fillStyle = this.color;
     context.textBaseline = "top";
-    context.fillText(this.text, 0, 0);
+    for (const [index, line] of lines.entries()) {
+      context.fillText(line, 0, index * this.fontSize);
+    }
 
     // Native canvas text is antialiased. Keep only fully opaque pixels.
     const image = context.getImageData(0, 0, canvas.width, canvas.height);

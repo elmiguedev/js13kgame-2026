@@ -11,8 +11,8 @@ export default class Sprite extends GameObject {
   readonly height: number;
   color: string;
 
-  constructor({ width = 16, height = 16, color = "#ffffff", ...objectConfig }: SpriteConfig = {}) {
-    super(objectConfig);
+  constructor({ width = 16, height = 16, color = "#ffffff", hitArea, ...objectConfig }: SpriteConfig = {}) {
+    super({ ...objectConfig, hitArea: hitArea ?? { width, height } });
     this.width = width;
     this.height = height;
     this.color = color;

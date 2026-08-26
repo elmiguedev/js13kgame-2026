@@ -1,4 +1,5 @@
 import type GameObject from "../Object";
+import type Position from "../common/Position";
 import type Renderer from "../renderers/Renderer";
 
 export default class EntityController {
@@ -34,6 +35,19 @@ export default class EntityController {
     for (const object of this.objects.values()) {
       renderer.render(object);
     }
+  }
+
+  click(position: Position): GameObject | undefined {
+    const objects = Array.from(this.objects.values());
+    for (let index = objects.length - 1; index >= 0; index -= 1) {
+      const object = objects[index];
+      if (object?.onClick && object.containsPoint(position.x, position.y)) {
+        object.onClick();
+        return object;
+      }
+    }
+
+    return undefined;
   }
 
   destroy(): void {

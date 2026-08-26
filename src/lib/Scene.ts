@@ -3,6 +3,7 @@ import EntityController from "./controllers/EntityController";
 import InputController from "./controllers/InputController";
 import type SceneController from "./controllers/SceneController";
 import type Game from "./Game";
+import type GameObject from "./Object";
 
 export default class Scene {
   readonly entities = new EntityController();
@@ -14,6 +15,7 @@ export default class Scene {
   private lastTime: number | undefined;
   private created = false;
   private active = false;
+  private focusedObject: GameObject | undefined;
 
   constructor(readonly key: string) {
     this.addController(this.input);
@@ -89,11 +91,14 @@ export default class Scene {
 
   destroy(): void {
     this.stop();
+    this.shutdown();
     this.entities.destroy();
     for (const controller of this.controllers) {
       controller.detach();
     }
   }
+
+  shutdown(): void {}
 
   private readonly step = (time: number): void => {
     this.frameId = undefined;
@@ -111,6 +116,20 @@ export default class Scene {
 
     if (!this.active) {
       return;
+    }
+
+    const click = this.input.mouse.consumeClick();
+    if (click) {
+      const clickedObject = this.entities.click(click);
+      if (clickedObject !== this.focusedObject) {
+        this.focusedObject?.blur();
+        this.focusedObject = clickedObject;
+        this.focusedObject?.focus();
+      }
+    }
+
+    for (const key of this.input.keyboard.consumeKeyPresses()) {
+      this.focusedObject?.handleKey(key);
     }
 
     this.update(time, delta);
