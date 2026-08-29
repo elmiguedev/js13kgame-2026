@@ -2,6 +2,9 @@ import type GameState from "../domain/GameState";
 import type Enemy from "../domain/Enemy";
 import type EnemyTotem from "../domain/EnemyTotem";
 import type Player from "../domain/Player";
+import type { AttackType } from "../domain/Player";
+import type Projectile from "../domain/Projectile";
+import type Position from "../../lib/common/Position";
 import SocketController, { type SocketEvent } from "../../lib/controllers/SocketController";
 
 const RELAY_URL = "wss://relay.js13kgames.com/rainbow-renegades";
@@ -11,8 +14,11 @@ const ENEMY_AGGRO_DISTANCE = 100;
 const ENEMY_RELEASE_DISTANCE = 150;
 const ENEMY_SPEED = 45;
 const ATTACK_RANGE = 24;
+const MAGIC_RANGE = 120;
+const MAGIC_PROJECTILE_SPEED = 160;
+const MAGIC_HIT_DISTANCE = 7;
 const PLAYER_SPEED = 90;
-const TOTEM_MAX_ENEMIES = 6;
+const TOTEM_MAX_ENEMIES = 3;
 const TOTEM_SPAWN_INTERVAL = 750;
 const TOTEM_SPAWN_RADIUS = 28;
 const STATE_BROADCAST_INTERVAL = 50;
@@ -23,6 +29,11 @@ interface PendingMove {
   sequence: number;
   x: number;
   y: number;
+}
+
+interface MagicProjectile extends Projectile {
+  direction: Position;
+  remainingRange: number;
 }
 
 export type RoomEvent =
@@ -40,6 +51,7 @@ export default class RoomController {
   private readonly stateListeners = new Set<(state: GameState) => void>();
   private readonly playerMap = new Map<string, Player>();
   private readonly enemyMap = new Map<string, Enemy>();
+  private readonly projectileMap = new Map<string, MagicProjectile>();
   private readonly totemMap = new Map<string, EnemyTotem>();
   private readonly enemyTargets = new Map<string, string>();
   private readonly playerTargets = new Map<string, { x: number; y: number }>();
@@ -54,6 +66,7 @@ export default class RoomController {
   private pendingMoves: PendingMove[] = [];
   private readonly acknowledgements = new Map<string, number>();
   private nextEnemyId = 0;
+  private nextProjectileId = 0;
   private stateDirty = false;
   private stateBroadcastTimer = 0;
 
@@ -91,6 +104,7 @@ export default class RoomController {
       players: Array.from(this.playerMap.values(), this.copyPlayer),
       enemies: Array.from(this.enemyMap.values(), this.copyEnemy),
       totems: Array.from(this.totemMap.values(), this.copyTotem),
+      projectiles: Array.from(this.projectileMap.values(), this.copyProjectile),
     };
   }
 
@@ -134,14 +148,6 @@ export default class RoomController {
       spawnRadius: TOTEM_SPAWN_RADIUS,
     });
     this.totemSpawnTimers.set("totem-1", TOTEM_SPAWN_INTERVAL);
-    this.totemMap.set("totem-2", {
-      id: "totem-2",
-      position: { x: 157, y: 305 },
-      maxEnemies: TOTEM_MAX_ENEMIES,
-      spawnInterval: TOTEM_SPAWN_INTERVAL,
-      spawnRadius: TOTEM_SPAWN_RADIUS,
-    });
-    this.totemSpawnTimers.set("totem-2", TOTEM_SPAWN_INTERVAL);
     this.markStateChanged();
     this.flushState();
     this.socket.send("s");
@@ -198,7 +204,8 @@ export default class RoomController {
 
     const spawnedEnemies = this.updateTotems(clampedDelta);
     const movedEnemies = this.updateEnemyAI(clampedDelta);
-    if (movedPlayers || spawnedEnemies || movedEnemies) {
+    const movedProjectiles = this.updateProjectiles(clampedDelta);
+    if (movedPlayers || spawnedEnemies || movedEnemies || movedProjectiles) {
       this.markStateChanged();
     }
 
@@ -329,15 +336,26 @@ export default class RoomController {
 
     const enemy = this.enemyMap.get(enemyId);
     const distance = enemy ? this.getDistance(enemy, player) : undefined;
-    if (!enemy || distance === undefined || distance > ATTACK_RANGE) {
+    if (!enemy || distance === undefined) {
       return;
     }
 
-    enemy.hp -= 1;
-    if (enemy.hp <= 0) {
-      this.enemyMap.delete(enemy.id);
-      this.enemyTargets.delete(enemy.id);
+    if (player.attackType === "magic") {
+      if (!this.createMagicProjectile(player, enemy, distance)) {
+        return;
+      }
+      player.attackSequence += 1;
+      this.markStateChanged();
+      this.flushState();
+      return;
     }
+
+    if (distance > ATTACK_RANGE) {
+      return;
+    }
+
+    player.attackSequence += 1;
+    this.damageEnemy(enemy);
     this.markStateChanged();
   }
 
@@ -353,16 +371,19 @@ export default class RoomController {
   }
 
   private applySerializedState(serializedState: string): void {
-    const [players = "", enemies = "", totems = "", acknowledgements = ""] = serializedState.split("|");
+    const localPlayer = this.clientId ? this.playerMap.get(this.clientId) : undefined;
+    const [players = "", enemies = "", totems = "", projectiles = "", acknowledgements = ""] = serializedState.split("|");
     const state = {
       players: this.parsePlayers(players),
       enemies: this.parseEnemies(enemies),
       totems: this.parseTotems(totems),
+      projectiles: this.parseProjectiles(projectiles),
     };
 
     this.playerMap.clear();
     this.enemyMap.clear();
     this.totemMap.clear();
+    this.projectileMap.clear();
     this.enemyTargets.clear();
     for (const player of state.players) {
       this.playerMap.set(player.id, player);
@@ -373,22 +394,33 @@ export default class RoomController {
     for (const totem of state.totems) {
       this.totemMap.set(totem.id, totem);
     }
+    for (const projectile of state.projectiles) {
+      this.projectileMap.set(projectile.id, { ...projectile, direction: { x: 0, y: 0 }, remainingRange: 0 });
+    }
     for (const id of this.playerTargets.keys()) {
       if (!this.playerMap.has(id)) {
         this.playerTargets.delete(id);
       }
     }
     this.reconcilePrediction(this.parseAcknowledgements(acknowledgements));
+    if (localPlayer && this.clientId && this.playerTargets.has(this.clientId)) {
+      const synchronizedPlayer = this.playerMap.get(this.clientId);
+      if (synchronizedPlayer) {
+        synchronizedPlayer.position = { ...localPlayer.position };
+      }
+    }
     this.emit({ type: "players" });
     this.emitStateChange();
   }
 
   private serializeState(): string {
-    return `${this.serializePlayers()}|${this.serializeEnemies()}|${this.serializeTotems()}|${this.serializeAcknowledgements()}`;
+    return `${this.serializePlayers()}|${this.serializeEnemies()}|${this.serializeTotems()}|${this.serializeProjectiles()}|${this.serializeAcknowledgements()}`;
   }
 
   private serializePlayers(): string {
-    return Array.from(this.playerMap.values(), ({ id, hp, position }) => `${id},${position.x},${position.y},${hp}`).join(";");
+    return Array.from(this.playerMap.values(), ({ id, hp, attackSequence, attackType, position }) => (
+      `${id},${position.x},${position.y},${hp},${attackSequence},${attackType}`
+    )).join(";");
   }
 
   private serializeEnemies(): string {
@@ -401,18 +433,24 @@ export default class RoomController {
     )).join(";");
   }
 
+  private serializeProjectiles(): string {
+    return Array.from(this.projectileMap.values(), ({ id, playerId, position }) => `${id},${playerId},${position.x},${position.y}`).join(";");
+  }
+
   private parsePlayers(value: string): Player[] {
     if (!value) {
       return [];
     }
 
     return value.split(";").flatMap((serializedEntity) => {
-      const [id, x, y, hp] = serializedEntity.split(",");
+      const [id, x, y, hp, attackSequence, attackType] = serializedEntity.split(",");
       const positionX = Number(x);
       const positionY = Number(y);
       const health = Number(hp);
-      return id && Number.isFinite(positionX) && Number.isFinite(positionY) && Number.isFinite(health)
-        ? [{ id, hp: health, position: { x: positionX, y: positionY } }]
+      const attack = Number(attackSequence);
+      return id && Number.isFinite(positionX) && Number.isFinite(positionY) && Number.isFinite(health) && Number.isFinite(attack)
+        && (attackType === "magic" || attackType === "normal")
+        ? [{ id, hp: health, attackSequence: attack, attackType, position: { x: positionX, y: positionY } }]
         : [];
     });
   }
@@ -452,6 +490,21 @@ export default class RoomController {
     });
   }
 
+  private parseProjectiles(value: string): Projectile[] {
+    if (!value) {
+      return [];
+    }
+
+    return value.split(";").flatMap((serializedProjectile) => {
+      const [id, playerId, x, y] = serializedProjectile.split(",");
+      const positionX = Number(x);
+      const positionY = Number(y);
+      return id && playerId && Number.isFinite(positionX) && Number.isFinite(positionY)
+        ? [{ id, playerId, position: { x: positionX, y: positionY } }]
+        : [];
+    });
+  }
+
   private serializeAcknowledgements(): string {
     return Array.from(this.acknowledgements, ([id, sequence]) => `${id},${sequence}`).join(";");
   }
@@ -485,6 +538,11 @@ export default class RoomController {
 
     if (this.playerMap.delete(id)) {
       this.playerTargets.delete(id);
+      for (const [projectileId, projectile] of this.projectileMap) {
+        if (projectile.playerId === id) {
+          this.projectileMap.delete(projectileId);
+        }
+      }
       if (this.isHost) {
         this.emit({ type: "players" });
         this.markStateChanged();
@@ -607,6 +665,87 @@ export default class RoomController {
     return movedEnemies;
   }
 
+  private updateProjectiles(delta: number): boolean {
+    const distanceToMove = MAGIC_PROJECTILE_SPEED * delta / 1000;
+    let changedProjectiles = false;
+
+    for (const projectile of this.projectileMap.values()) {
+      const hitEnemy = this.getProjectileHit(projectile);
+      if (hitEnemy) {
+        this.damageEnemy(hitEnemy);
+        this.projectileMap.delete(projectile.id);
+        changedProjectiles = true;
+        continue;
+      }
+
+      const movement = Math.min(distanceToMove, projectile.remainingRange);
+      if (movement === 0) {
+        this.projectileMap.delete(projectile.id);
+        changedProjectiles = true;
+        continue;
+      }
+
+      projectile.position.x += projectile.direction.x * movement;
+      projectile.position.y += projectile.direction.y * movement;
+      projectile.remainingRange -= movement;
+      changedProjectiles = true;
+
+      const enemy = this.getProjectileHit(projectile);
+      if (enemy) {
+        this.damageEnemy(enemy);
+        this.projectileMap.delete(projectile.id);
+      }
+    }
+
+    return changedProjectiles;
+  }
+
+  private createMagicProjectile(player: Player, enemy: Enemy, distance: number): boolean {
+    if (distance > MAGIC_RANGE || this.hasActiveProjectile(player.id)) {
+      return false;
+    }
+
+    const x = enemy.position.x - player.position.x;
+    const y = enemy.position.y - player.position.y;
+    const id = `projectile-${this.nextProjectileId++}`;
+    this.projectileMap.set(id, {
+      id,
+      playerId: player.id,
+      position: { ...player.position },
+      direction: distance === 0 ? { x: 0, y: 0 } : { x: x / distance, y: y / distance },
+      remainingRange: MAGIC_RANGE,
+    });
+    return true;
+  }
+
+  private hasActiveProjectile(playerId: string): boolean {
+    for (const projectile of this.projectileMap.values()) {
+      if (projectile.playerId === playerId) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private getProjectileHit(projectile: Projectile): Enemy | undefined {
+    for (const enemy of this.enemyMap.values()) {
+      if (this.getDistance(projectile, enemy) <= MAGIC_HIT_DISTANCE) {
+        return enemy;
+      }
+    }
+
+    return undefined;
+  }
+
+  private damageEnemy(enemy: Enemy): void {
+    enemy.hp -= 1;
+    if (enemy.hp <= 0) {
+      this.enemyMap.delete(enemy.id);
+      this.enemyTargets.delete(enemy.id);
+    }
+  }
+
   private getTotemEnemyCount(totemId: string): number {
     let count = 0;
     for (const enemy of this.enemyMap.values()) {
@@ -632,14 +771,14 @@ export default class RoomController {
     });
   }
 
-  private getDistance(first: Enemy, second: Player): number {
+  private getDistance(first: { position: Position }, second: { position: Position }): number {
     return Math.hypot(
       second.position.x - first.position.x,
       second.position.y - first.position.y,
     );
   }
 
-  private createPlayer(id: string): Player {
+  private createPlayer(id: string, attackType: AttackType = "magic"): Player {
     let hash = 0;
     for (let index = 0; index < id.length; index += 1) {
       hash = (hash * 31 + id.charCodeAt(index)) | 0;
@@ -648,6 +787,8 @@ export default class RoomController {
     return {
       id,
       hp: 100,
+      attackSequence: 0,
+      attackType,
       position: {
         x: 20 + ((hash >>> 0) % 80),
         y: 20 + ((hash >>> 8) % 80),
@@ -685,10 +826,12 @@ export default class RoomController {
     this.playerMap.clear();
     this.enemyMap.clear();
     this.totemMap.clear();
+    this.projectileMap.clear();
     this.enemyTargets.clear();
     this.playerTargets.clear();
     this.totemSpawnTimers.clear();
     this.nextEnemyId = 0;
+    this.nextProjectileId = 0;
     this.stateDirty = false;
     this.stateBroadcastTimer = 0;
   }
@@ -709,6 +852,8 @@ export default class RoomController {
   private readonly copyPlayer = (player: Player): Player => ({
     id: player.id,
     hp: player.hp,
+    attackSequence: player.attackSequence,
+    attackType: player.attackType,
     position: { ...player.position },
   });
 
@@ -717,6 +862,12 @@ export default class RoomController {
     totemId: enemy.totemId,
     hp: enemy.hp,
     position: { ...enemy.position },
+  });
+
+  private readonly copyProjectile = (projectile: Projectile): Projectile => ({
+    id: projectile.id,
+    playerId: projectile.playerId,
+    position: { ...projectile.position },
   });
 
   private readonly copyTotem = (totem: EnemyTotem): EnemyTotem => ({

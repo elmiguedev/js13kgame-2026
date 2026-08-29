@@ -8,8 +8,8 @@ import.meta.hot.accept();
 
 const game = new Game({
   resolution: {
-    width: 128,
-    height: 128
+    width: 160,
+    height: 160
   },
   zoom: 3,
   scenes: [

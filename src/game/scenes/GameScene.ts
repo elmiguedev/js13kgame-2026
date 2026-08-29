@@ -5,12 +5,14 @@ import type GameState from "../domain/GameState";
 import EnemyEntity from "../entities/EnemyEntity";
 import EnemyTotemEntity from "../entities/EnemyTotemEntity";
 import PlayerEntity from "../entities/PlayerEntity";
+import ProjectileEntity from "../entities/ProjectileEntity";
 import RoomScene from "./RoomScene";
 
 export default class GameScene extends RoomScene {
   private readonly players = new Map<string, PlayerEntity>();
   private readonly enemies = new Map<string, EnemyEntity>();
   private readonly totems = new Map<string, EnemyTotemEntity>();
+  private readonly projectiles = new Map<string, ProjectileEntity>();
   private unsubscribe: (() => void) | undefined;
   private unsubscribeRoom: (() => void) | undefined;
 
@@ -96,6 +98,20 @@ export default class GameScene extends RoomScene {
       const entity = this.enemies.get(enemy.id) ?? this.entities.add(new EnemyEntity(enemy));
       entity.sync(enemy);
       this.enemies.set(enemy.id, entity);
+    }
+
+    const projectileIds = new Set(state.projectiles.map((projectile) => projectile.id));
+    for (const [id, entity] of this.projectiles) {
+      if (!projectileIds.has(id)) {
+        this.entities.remove(entity.id);
+        this.projectiles.delete(id);
+      }
+    }
+
+    for (const projectile of state.projectiles) {
+      const entity = this.projectiles.get(projectile.id) ?? this.entities.add(new ProjectileEntity(projectile));
+      entity.sync(projectile);
+      this.projectiles.set(projectile.id, entity);
     }
   };
 }
