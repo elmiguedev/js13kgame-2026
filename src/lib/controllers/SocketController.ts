@@ -19,6 +19,16 @@ export default class SocketController extends Controller {
     super();
   }
 
+  static createRoomCode(length = 3): string {
+    if (!Number.isInteger(length) || length < 1) {
+      throw new Error("Room code length must be a positive integer.");
+    }
+
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const values = crypto.getRandomValues(new Uint8Array(length));
+    return Array.from(values, (value) => alphabet[value % alphabet.length]).join("");
+  }
+
   get connected(): boolean {
     return this.socket?.readyState === WebSocket.OPEN;
   }
