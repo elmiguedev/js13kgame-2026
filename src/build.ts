@@ -14,3 +14,5 @@ if (!result.success) {
 
   process.exit(1);
 }
+
+await Bun.write("./dist/spritesheet.png", Bun.file("./assets/img/spritesheet.png"));
