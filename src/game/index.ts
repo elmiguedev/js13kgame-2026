@@ -1,5 +1,4 @@
 import Game from "../lib/Game";
-import RoomController from "./controllers/RoomController";
 import GameScene from "./scenes/GameScene";
 import LobbyScene from "./scenes/LobbyScene";
 import StartScene from "./scenes/StartScene";
@@ -22,5 +21,4 @@ const game = new Game({
 
 import.meta.hot.dispose(() => {
   game.destroy();
-  RoomController.destroyInstance();
 });

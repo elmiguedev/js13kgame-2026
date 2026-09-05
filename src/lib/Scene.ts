@@ -45,6 +45,8 @@ export default class Scene {
 
   handleClick(_position: Position, _clickedObject: GameObject | undefined): void {}
 
+  handleKey(_key: string): void {}
+
   addController<T extends Controller>(controller: T): T {
     this.controllers.add(controller);
 
@@ -138,6 +140,7 @@ export default class Scene {
 
     for (const key of this.input.keyboard.consumeKeyPresses()) {
       this.focusedObject?.handleKey(key);
+      this.handleKey(key);
     }
 
     this.update(time, delta);
