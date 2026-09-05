@@ -30,9 +30,12 @@ export class Key {
   }
 }
 
+export type KeyPressListener = () => void;
+
 export default class KeyboardController extends Controller {
   private readonly keys = new Map<string, Key>();
   private readonly keyPresses: string[] = [];
+  private readonly keyPressListeners = new Map<string, Set<KeyPressListener>>();
 
   addKey(value: string): Key {
     const normalizedValue = this.normalize(value);
@@ -48,6 +51,15 @@ export default class KeyboardController extends Controller {
 
   isKeyDown(value: string): boolean {
     return this.keys.get(this.normalize(value))?.isDown ?? false;
+  }
+
+  onKeyPress(value: string, listener: KeyPressListener): () => void {
+    const normalizedValue = this.normalize(value);
+    this.addKey(value);
+    const listeners = this.keyPressListeners.get(normalizedValue) ?? new Set<KeyPressListener>();
+    this.keyPressListeners.set(normalizedValue, listeners);
+    listeners.add(listener);
+    return () => listeners.delete(listener);
   }
 
   consumeKeyPresses(): string[] {
@@ -70,9 +82,16 @@ export default class KeyboardController extends Controller {
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
     this.keyPresses.push(event.key);
     const key = this.keys.get(this.normalize(event.key));
-    if (key) {
-      key.isDown = true;
+    if (!key) {
+      return;
     }
+
+    if (!key.isDown) {
+      for (const listener of this.keyPressListeners.get(this.normalize(event.key)) ?? []) {
+        listener();
+      }
+    }
+    key.isDown = true;
   };
 
   private readonly handleKeyUp = (event: KeyboardEvent): void => {

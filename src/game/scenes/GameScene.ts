@@ -1,44 +1,45 @@
 import { Keys } from "../../lib/controllers/KeyboardController";
 import SpriteSheet from "../../lib/entities/SpriteSheet";
-import SpriteSheetSprite from "../../lib/entities/SpriteSheetSprite";
-import Text from "../../lib/entities/Text";
 import Scene from "../../lib/Scene";
+import GameController from "../controllers/GameController";
+import type { MoveType } from "../domain/MoveType";
 
 export default class GameScene extends Scene {
+  private readonly spriteSheet = new SpriteSheet("./spritesheet.png", 8, 8, 8, 8);
+  private readonly gameController = GameController.getInstance();
+  private unsubscribeGameState: (() => void) | undefined;
+
   constructor() {
     super("GameScene");
   }
 
   override create(): void {
-    this.entities.add(new Text({ x: 52, y: 56 }, "DUNGEON\n\nPRESS ENTER"));
+    this.createKeys();
+    this.createEvents();
+    this.gameController.gameService.setGameStatus("game");
+    console.log("Game state:", this.gameController.gameService.state);
+  }
 
+  override shutdown(): void {
+    this.unsubscribeGameState?.();
+    this.unsubscribeGameState = undefined;
+  }
 
-    const spriteSheet = new SpriteSheet("./spritesheet.png", 8, 8, 8, 8);
-    const testSprite = new SpriteSheetSprite({
-      x: 100,
-      y: 100,
-      spriteSheet,
-      frame: 0,
-      width: 8,
-      height: 8,
-      animations: {
-        idle: {
-          frames: [0, 1],
-          frameDuration: 400,
-          loop: true,
-        },
-      }
-
+  private createEvents(): void {
+    this.unsubscribeGameState = this.gameController.onGameStateChange((event) => {
+      console.log("Game state changed:", event);
     });
+  }
 
-    testSprite.anims.play("idle");
-    this.entities.add(testSprite);
+  private createKeys(): void {
+    this.input.keyboard.onKeyPress(Keys.ARROW_UP, () => this.movePlayer("up"));
+    this.input.keyboard.onKeyPress(Keys.ARROW_DOWN, () => this.movePlayer("down"));
+    this.input.keyboard.onKeyPress(Keys.ARROW_LEFT, () => this.movePlayer("left"));
+    this.input.keyboard.onKeyPress(Keys.ARROW_RIGHT, () => this.movePlayer("right"));
 
   }
 
-  override handleKey(key: string): void {
-    if (key === Keys.ENTER) {
-      this.scene.start("StartScene");
-    }
+  private movePlayer(direction: MoveType): void {
+    this.gameController.actions.movePlayer.execute({ id: "player1", direction });
   }
 }
