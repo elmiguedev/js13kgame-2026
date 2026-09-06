@@ -1,19 +1,19 @@
-import SocketController, { type SocketEvent } from "../../lib/controllers/SocketController";
 import Button from "../../lib/entities/Button";
 import TextField from "../../lib/entities/TextField";
 import Scene from "../../lib/Scene";
+import GameController from "../controllers/GameController";
 
 export default class StartScene extends Scene {
-  private socket: SocketController | undefined;
-  private roomCode: string | undefined;
+  private readonly gameController = GameController.getInstance();
   private roomTextField: TextField | undefined;
-  private playerType: "HOST" | "GUEST" | undefined;
+  private unsubscribePlayerJoinRoom: (() => void) | undefined;
 
   constructor() {
     super("StartScene");
   }
 
   override create(): void {
+    this.unsubscribePlayerJoinRoom = this.gameController.onPlayerJoinRoom(this.startLobbyScene);
     this.createHostButton();
     this.createJoinButton();
   }
@@ -28,12 +28,12 @@ export default class StartScene extends Scene {
   }
 
   override shutdown(): void {
-    this.socket?.destroy();
+    this.unsubscribePlayerJoinRoom?.();
+    this.unsubscribePlayerJoinRoom = undefined;
   }
 
   private readonly hostRoom = (): void => {
-    const roomCode = SocketController.createRoomCode();
-    this.createSocketRoom(roomCode, "HOST");
+    this.gameController.hostRoom();
   };
 
   private readonly joinRoom = (): void => {
@@ -44,41 +44,10 @@ export default class StartScene extends Scene {
       return;
     }
 
-    this.createSocketRoom(roomCode, "GUEST");
+    this.gameController.joinRoom(roomCode, "GUEST");
   };
 
-  private createSocketRoom(roomCode: string, playerType: "HOST" | "GUEST"): void {
-    const protocol = location.protocol === "https:" ? "wss" : "ws";
-    const url = `${protocol}://${location.host}/relay/${roomCode}`;
-
-    this.socket?.destroy();
-    this.socket = new SocketController();
-    this.roomCode = roomCode;
-    this.playerType = playerType;
-
-    this.socket.on(this.handleSocketEvent);
-    this.socket.connect(url);
-  }
-
-  private startLobbyScene(): void {
-    if (!this.playerType || !this.roomCode) {
-      return;
-    }
-
-    this.scene.start("LobbyScene", { playerType: this.playerType, roomCode: this.roomCode });
-  }
-
-  private readonly handleSocketEvent = (event: SocketEvent): void => {
-    if (event.type === "open") {
-      console.log(`Connecting to room ${this.roomCode}`);
-    } else if (event.type === "id") {
-      console.log(`Joined room ${this.roomCode} as ${event.clientId}`);
-      this.startLobbyScene();
-    } else if (event.type === "error") {
-      console.error(`Could not join room ${this.roomCode}`);
-    } else if (event.type === "close") {
-      console.log(`Left room ${this.roomCode}`);
-    }
+  private readonly startLobbyScene = ({ playerType, roomCode }: { playerType: "HOST" | "GUEST"; roomCode: string }): void => {
+    this.scene.start("LobbyScene", { playerType, roomCode });
   };
-
 }

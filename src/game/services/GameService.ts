@@ -50,6 +50,31 @@ export default class GameService {
     return true;
   }
 
+  setPlayers(players: ReadonlyMap<string, PlayerState>): void {
+    this.players.clear();
+    for (const [id, player] of players) {
+      this.players.set(id, this.copyPlayer(player));
+    }
+    this.emitStateChange();
+  }
+
+  setState(state: GameState): void {
+    const statusChanged = this.state.status !== state.status;
+    this.state.status = state.status;
+    this.players.clear();
+    this.enemies.clear();
+    for (const [id, player] of state.players) {
+      this.players.set(id, this.copyPlayer(player));
+    }
+    for (const [id, enemy] of state.enemies) {
+      this.enemies.set(id, this.copyEnemy(enemy));
+    }
+    if (statusChanged) {
+      this.gameStatusChanges.emit({ status: state.status });
+    }
+    this.emitStateChange();
+  }
+
   updatePlayer(player: PlayerState): boolean {
     if (!this.players.has(player.id)) {
       return false;
