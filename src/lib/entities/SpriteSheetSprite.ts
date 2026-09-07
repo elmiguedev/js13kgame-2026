@@ -21,6 +21,7 @@ export default class SpriteSheetSprite extends GameObject {
   readonly anims: SpriteSheetSpriteAnimations;
   readonly width: number;
   readonly height: number;
+  visible = true;
   private currentFrame: number;
 
   constructor({ spriteSheet, frame, width = spriteSheet.frameWidth, height = spriteSheet.frameHeight, animations = {}, hitArea, ...objectConfig }: SpriteSheetSpriteConfig) {
@@ -56,6 +57,10 @@ export default class SpriteSheetSprite extends GameObject {
   }
 
   override render(context: CanvasRenderingContext2D): void {
+    if (!this.visible) {
+      return;
+    }
+
     const image = this.spriteSheet.image;
     if (!image.naturalWidth) {
       return;

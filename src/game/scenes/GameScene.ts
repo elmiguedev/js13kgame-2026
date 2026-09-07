@@ -5,12 +5,14 @@ import GameController from "../controllers/GameController";
 import type { MoveType } from "../domain/MoveType";
 import type PlayerState from "../domain/PlayerState";
 import type SolidState from "../domain/SolidState";
+import FogOfWar from "../entities/FogOfWar";
 import PlayerEntity from "../entities/PlayerEntity";
 import SolidEntity from "../entities/SolidEntity";
 
 export default class GameScene extends Scene {
   private readonly spriteSheet = new SpriteSheet("./spritesheet.png", 8, 8, 8, 8);
   private readonly gameController = GameController.getInstance();
+  private readonly fog = new FogOfWar();
   private readonly playerEntities = new Map<string, PlayerEntity>();
   private readonly solidEntities = new Map<string, SolidEntity>();
   private unsubscribeGameState: (() => void) | undefined;
@@ -34,6 +36,7 @@ export default class GameScene extends Scene {
       console.log("Game state changed:", event);
       this.syncSolidEntities(event.state.solids);
       this.syncPlayerEntities(event.state.players);
+      this.updateFog();
     });
   }
 
@@ -91,6 +94,13 @@ export default class GameScene extends Scene {
         this.solidEntities.delete(id);
       }
     }
+  }
+
+  private updateFog(): void {
+    const localPlayerId = this.gameController.localPlayerId;
+    const localPlayer = localPlayerId ? this.playerEntities.get(localPlayerId) : undefined;
+    this.fog.apply(localPlayer, this.playerEntities.values());
+    this.fog.apply(localPlayer, this.solidEntities.values());
   }
 
   private movePlayer(direction: MoveType): void {
