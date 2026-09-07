@@ -1,5 +1,7 @@
 import SocketController, { type SocketEvent } from "../../lib/controllers/SocketController";
 import Observable, { type ObservableListener } from "../../lib/common/Observable";
+import type { MovePlayerInput } from "../actions/MovePlayerAction";
+import type { MoveType } from "../domain/MoveType";
 
 export type RoomPlayerType = "HOST" | "GUEST";
 
@@ -13,9 +15,9 @@ export interface RoomJoined {
 export default class RoomController {
   private readonly socket = new SocketController();
   private readonly playerJoined = new Observable<RoomJoined>();
-  private readonly playersReceived = new Observable<readonly string[]>();
   private readonly stateReceived = new Observable<string>();
   private readonly playerReady = new Observable<string>();
+  private readonly moveReceived = new Observable<MovePlayerInput>();
   private roomCode: string | undefined;
   private playerType: RoomPlayerType | undefined;
   private clientId: string | undefined;
@@ -48,10 +50,6 @@ export default class RoomController {
     return this.playerJoined.subscribe(listener);
   }
 
-  onPlayersReceived(listener: ObservableListener<readonly string[]>): () => void {
-    return this.playersReceived.subscribe(listener);
-  }
-
   onStateReceived(listener: ObservableListener<string>): () => void {
     return this.stateReceived.subscribe(listener);
   }
@@ -60,16 +58,25 @@ export default class RoomController {
     return this.playerReady.subscribe(listener);
   }
 
-  sendPlayers(clientId: string, playerIds: readonly string[]): boolean {
-    return this.socket.sendTo(clientId, `players|${playerIds.join(",")}`);
+  onMoveReceived(listener: ObservableListener<MovePlayerInput>): () => void {
+    return this.moveReceived.subscribe(listener);
   }
 
   sendState(state: string): boolean {
     return this.socket.send(`state|${state}`);
   }
 
+  publishState(state: string): boolean {
+    this.stateReceived.emit(state);
+    return this.sendState(state);
+  }
+
   sendReady(): boolean {
     return this.clientId ? this.socket.send(`ready|${this.clientId}`) : false;
+  }
+
+  sendMove(input: MovePlayerInput): boolean {
+    return this.socket.send(`move|${input.id}|${input.direction}`);
   }
 
   get isHost(): boolean {
@@ -117,12 +124,19 @@ export default class RoomController {
     const separator = message.indexOf("|");
     const type = separator === -1 ? message : message.slice(0, separator);
     const value = separator === -1 ? "" : message.slice(separator + 1);
-    if (type === "players") {
-      this.playersReceived.emit(value ? value.split(",") : []);
-    } else if (type === "state") {
+    if (type === "state") {
       this.stateReceived.emit(value);
     } else if (type === "ready" && value) {
       this.playerReady.emit(value);
+    } else if (type === "move") {
+      const [id, direction] = value.split("|");
+      if (id && this.isMoveType(direction)) {
+        this.moveReceived.emit({ id, direction });
+      }
     }
+  }
+
+  private isMoveType(value: string | undefined): value is MoveType {
+    return value === "up" || value === "down" || value === "left" || value === "right";
   }
 }

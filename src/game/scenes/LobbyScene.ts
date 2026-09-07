@@ -2,6 +2,7 @@ import Button from "../../lib/entities/Button";
 import Text from "../../lib/entities/Text";
 import Scene from "../../lib/Scene";
 import GameController from "../controllers/GameController";
+import type PlayerState from "../domain/PlayerState";
 import PlayerListEntity from "../entities/lobby/PlayerListEntity";
 
 interface LobbyData {
@@ -14,7 +15,7 @@ export default class LobbyScene extends Scene {
   private playerType = "GUEST";
   private roomCode = "";
   private gameController = GameController.getInstance();
-  private playerListEntity!: PlayerListEntity;
+  private readonly playerListEntities = new Map<string, PlayerListEntity>();
   private unsubscribePlayerJoinRoom: (() => void) | undefined;
   private unsubscribeGameState: (() => void) | undefined;
 
@@ -30,7 +31,6 @@ export default class LobbyScene extends Scene {
   override create(): void {
     this.createPlayerTypeText();
     this.createRoomCodeText();
-    this.createPlayerList();
     this.createStartButton();
     this.createRoomEvents();
   }
@@ -49,13 +49,6 @@ export default class LobbyScene extends Scene {
     ));
   }
 
-  private createPlayerList(): void {
-    this.playerListEntity = this.entities.add(new PlayerListEntity(
-      { x: 16, y: 56 },
-      this.gameController.gameService.state.players,
-    ));
-  }
-
   private createStartButton(): void {
     this.entities.add(new Button({ x: 48, y: 136, text: "START", onClick: this.setLocalPlayerReady }));
   }
@@ -69,12 +62,34 @@ export default class LobbyScene extends Scene {
       console.log("Player joined room:", playerType, roomCode);
     });
     this.unsubscribeGameState = this.gameController.onGameStateChange(({ state }) => {
-      this.playerListEntity.updatePlayers(state.players);
+      this.syncPlayerList(state.players);
       console.log("Game state changed:", state);
       if (state.players.size > 0 && Array.from(state.players.values()).every((player) => player.ready)) {
         this.scene.start("GameScene");
       }
     });
+  }
+
+  private syncPlayerList(players: ReadonlyMap<string, PlayerState>): void {
+    let row = 0;
+    for (const [id, player] of players) {
+      const entity = this.playerListEntities.get(id);
+      if (entity) {
+        entity.updatePlayer(player);
+        entity.position.y = 56 + row * 8;
+      } else {
+        const playerEntity = this.entities.add(new PlayerListEntity({ x: 16, y: 56 + row * 8 }, player));
+        this.playerListEntities.set(id, playerEntity);
+      }
+      row += 1;
+    }
+
+    for (const [id, entity] of this.playerListEntities) {
+      if (!players.has(id)) {
+        this.entities.remove(entity.id);
+        this.playerListEntities.delete(id);
+      }
+    }
   }
 
   override shutdown(): void {

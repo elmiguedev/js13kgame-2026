@@ -1,11 +1,10 @@
-import AddPlayerAction from "../actions/AddPlayerAction";
-import MovePlayerAction from "../actions/MovePlayerAction";
-import SetPlayerReadyAction from "../actions/SetPlayerReadyAction";
+import GameServer from "./GameServer";
 import RoomController, { type RoomJoined, type RoomPlayerType } from "./RoomController";
 import type GameStateChange from "../events/GameStateChange";
 import type GameStatusChange from "../events/GameStatusChange";
 import type GameState from "../domain/GameState";
 import type { GameStateType } from "../domain/GameStateType";
+import type { MoveType } from "../domain/MoveType";
 import type PlayerState from "../domain/PlayerState";
 import GameService from "../services/GameService";
 import Observable, { type ObservableListener } from "../../lib/common/Observable";
@@ -23,11 +22,7 @@ export default class GameController {
   // ---------------------------------------------
   private readonly roomController = new RoomController();
   public readonly gameService = new GameService();
-  public readonly actions = {
-    addPlayer: new AddPlayerAction(this.gameService),
-    movePlayer: new MovePlayerAction(this.gameService),
-    setPlayerReady: new SetPlayerReadyAction(this.gameService),
-  };
+  private gameServer: GameServer | undefined;
 
   // observables
   // ---------------------------------------------
@@ -42,44 +37,40 @@ export default class GameController {
   private constructor() {
     this.gameService.onGameStateChange((event) => {
       this.gameStateChanges.emit(event);
-      if (this.roomController.isHost) {
-        this.roomController.sendState(this.serializeState(event.state));
-      }
     });
     this.gameService.onGameStatusChange((event) => this.gameStatusChanges.emit(event));
     this.roomController.onPlayerJoined((event) => {
-      this.actions.addPlayer.execute(event.clientId);
-      if (!event.isLocal) {
-        this.roomController.sendPlayers(event.clientId, Array.from(this.gameService.state.players.keys()));
+      if (event.isLocal && event.playerType === "HOST") {
+        this.gameServer = new GameServer();
+        this.gameServer.onGameStateChange(this.applyHostState);
+      } else if (event.isLocal) {
+        this.gameServer = undefined;
       }
       this.playerJoinRoom.emit(event);
-    });
-    this.roomController.onPlayersReceived((playerIds) => {
-      const players = new Map<string, PlayerState>();
-      for (const playerId of playerIds) {
-        const player = this.gameService.getPlayer(playerId) ?? {
-          id: playerId,
-          hp: 100,
-          position: { x: 0, y: 0 },
-          ready: false,
-        };
-        players.set(playerId, player);
+      if (event.isLocal && event.playerType === "HOST") {
+        this.gameServer?.addPlayer(event.clientId);
+      } else if (!event.isLocal && this.roomController.isHost) {
+        this.gameServer?.addPlayer(event.clientId);
       }
-      this.gameService.setPlayers(players);
     });
     this.roomController.onStateReceived((state) => this.applyState(state));
-    this.roomController.onPlayerReady((playerId) => {
-      if (this.roomController.isHost) {
-        this.actions.setPlayerReady.execute(playerId);
-      }
-    });
+    this.roomController.onPlayerReady((playerId) => this.gameServer?.setPlayerReady(playerId));
+    this.roomController.onMoveReceived((input) => this.gameServer?.movePlayer(input));
   }
 
   // methods
   // ---------------------------------------------
 
   public onGameStateChange(listener: ObservableListener<GameStateChange>): () => void {
-    return this.gameStateChanges.subscribe(listener);
+    const unsubscribe = this.gameStateChanges.subscribe(listener);
+    listener({
+      state: {
+        status: this.gameService.state.status,
+        players: new Map(this.gameService.state.players),
+        enemies: new Map(this.gameService.state.enemies),
+      },
+    });
+    return unsubscribe;
   }
 
   public onGameStatusChange(listener: ObservableListener<GameStatusChange>): () => void {
@@ -94,10 +85,27 @@ export default class GameController {
     return this.roomController.hostRoom();
   }
 
+  public get localPlayerId(): string | undefined {
+    return this.roomController.localPlayerId;
+  }
+
+  public moveLocalPlayer(direction: MoveType): boolean {
+    const playerId = this.localPlayerId;
+    if (!playerId) {
+      return false;
+    }
+
+    if (this.roomController.isHost) {
+      return this.gameServer?.movePlayer({ id: playerId, direction }) ?? false;
+    }
+
+    return this.roomController.sendMove({ id: playerId, direction });
+  }
+
   public setLocalPlayerReady(): boolean {
     if (this.roomController.isHost) {
       const playerId = this.roomController.localPlayerId;
-      return playerId ? this.actions.setPlayerReady.execute(playerId) : false;
+      return playerId ? this.gameServer?.setPlayerReady(playerId) ?? false : false;
     }
 
     return this.roomController.sendReady();
@@ -113,6 +121,10 @@ export default class GameController {
       players: Array.from(state.players.values()),
     });
   }
+
+  private readonly applyHostState = ({ state }: GameStateChange): void => {
+    this.roomController.publishState(this.serializeState(state));
+  };
 
   private applyState(serializedState: string): void {
     try {

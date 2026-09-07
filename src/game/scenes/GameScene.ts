@@ -19,7 +19,6 @@ export default class GameScene extends Scene {
   override create(): void {
     this.createKeys();
     this.createEvents();
-    this.createPlayerEntities();
   }
 
   override shutdown(): void {
@@ -30,7 +29,7 @@ export default class GameScene extends Scene {
   private createEvents(): void {
     this.unsubscribeGameState = this.gameController.onGameStateChange((event) => {
       console.log("Game state changed:", event);
-      this.updatePlayerEntities(event.state.players);
+      this.syncPlayerEntities(event.state.players);
     });
   }
 
@@ -42,23 +41,26 @@ export default class GameScene extends Scene {
 
   }
 
-  private createPlayerEntities(): void {
-    for (const player of this.gameController.gameService.state.players.values()) {
-      const entity = this.entities.add(new PlayerEntity(this.spriteSheet, player));
-      this.playerEntities.set(player.id, entity);
-    }
-  }
-
-  private updatePlayerEntities(players: ReadonlyMap<string, PlayerState>): void {
-    for (const [id, entity] of this.playerEntities) {
-      const player = players.get(id);
-      if (player) {
+  private syncPlayerEntities(players: ReadonlyMap<string, PlayerState>): void {
+    for (const [id, player] of players) {
+      const entity = this.playerEntities.get(id);
+      if (entity) {
         entity.updateState(player);
+      } else {
+        const playerEntity = this.entities.add(new PlayerEntity(this.spriteSheet, player));
+        this.playerEntities.set(id, playerEntity);
+      }
+    }
+
+    for (const [id, entity] of this.playerEntities) {
+      if (!players.has(id)) {
+        this.entities.remove(entity.id);
+        this.playerEntities.delete(id);
       }
     }
   }
 
   private movePlayer(direction: MoveType): void {
-    this.gameController.actions.movePlayer.execute({ id: "player1", direction });
+    this.gameController.moveLocalPlayer(direction);
   }
 }
