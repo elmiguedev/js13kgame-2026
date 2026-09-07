@@ -1,14 +1,17 @@
 import AddPlayerAction from "../actions/AddPlayerAction";
 import MovePlayerAction, { type MovePlayerInput } from "../actions/MovePlayerAction";
 import SetPlayerReadyAction from "../actions/SetPlayerReadyAction";
+import GridObjectEntity from "../entities/GridObjectEntity";
+import WorldEntity from "../entities/WorldEntity";
 import type GameStateChange from "../events/GameStateChange";
 import GameService from "../services/GameService";
 import type { ObservableListener } from "../../lib/common/Observable";
 
 export default class GameServer {
   private readonly gameService = new GameService();
+  private readonly world = new WorldEntity();
   private readonly addPlayerAction = new AddPlayerAction(this.gameService);
-  private readonly movePlayerAction = new MovePlayerAction(this.gameService);
+  private readonly movePlayerAction = new MovePlayerAction(this.gameService, this.world);
   private readonly setPlayerReadyAction = new SetPlayerReadyAction(this.gameService);
 
   onGameStateChange(listener: ObservableListener<GameStateChange>): () => void {
@@ -16,7 +19,16 @@ export default class GameServer {
   }
 
   addPlayer(id: string): boolean {
-    return this.addPlayerAction.execute(id);
+    const object = new GridObjectEntity({ id, position: this.world.findFreePosition(), solid: true });
+    if (!this.world.addObject(object)) {
+      return false;
+    }
+
+    const added = this.addPlayerAction.execute({ id, position: this.world.toWorldPosition(object.position) });
+    if (!added) {
+      this.world.removeObject(id);
+    }
+    return added;
   }
 
   movePlayer(input: MovePlayerInput): boolean {

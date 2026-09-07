@@ -1,4 +1,5 @@
 import type { MoveType } from "../domain/MoveType";
+import WorldEntity from "../entities/WorldEntity";
 import GameService from "../services/GameService";
 import type Action from "./Action";
 
@@ -8,7 +9,10 @@ export interface MovePlayerInput {
 }
 
 export default class MovePlayerAction implements Action<MovePlayerInput, boolean> {
-  constructor(private readonly gameService: GameService) { }
+  constructor(
+    private readonly gameService: GameService,
+    private readonly world: WorldEntity,
+  ) { }
 
   execute({ id, direction }: MovePlayerInput): boolean {
     const player = this.gameService.getPlayer(id);
@@ -16,14 +20,12 @@ export default class MovePlayerAction implements Action<MovePlayerInput, boolean
       return false;
     }
 
+    const position = this.world.moveObject(id, direction);
+    if (!position) {
+      return false;
+    }
+
     console.log(`Moving player ${id} in direction ${direction}`);
-
-    const position = { ...player.position };
-    if (direction === "up") position.y -= 8;
-    else if (direction === "down") position.y += 8;
-    else if (direction === "left") position.x -= 8;
-    else position.x += 8;
-
     return this.gameService.updatePlayer({ ...player, position });
   }
 }
