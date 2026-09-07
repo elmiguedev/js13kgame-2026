@@ -3,18 +3,21 @@ import type EnemyState from "../domain/EnemyState";
 import type GameState from "../domain/GameState";
 import type { GameStateType } from "../domain/GameStateType";
 import type PlayerState from "../domain/PlayerState";
+import type SolidState from "../domain/SolidState";
 import type GameStateChange from "../events/GameStateChange";
 import type GameStatusChange from "../events/GameStatusChange";
 
 export default class GameService {
   private readonly players = new Map<string, PlayerState>();
   private readonly enemies = new Map<string, EnemyState>();
+  private readonly solids = new Map<string, SolidState>();
   private readonly gameStateChanges = new Observable<GameStateChange>();
   private readonly gameStatusChanges = new Observable<GameStatusChange>();
   readonly state: GameState = {
     status: "lobby",
     players: this.players,
     enemies: this.enemies,
+    solids: this.solids,
   };
 
   onGameStateChange(listener: ObservableListener<GameStateChange>): () => void {
@@ -63,11 +66,15 @@ export default class GameService {
     this.state.status = state.status;
     this.players.clear();
     this.enemies.clear();
+    this.solids.clear();
     for (const [id, player] of state.players) {
       this.players.set(id, this.copyPlayer(player));
     }
     for (const [id, enemy] of state.enemies) {
       this.enemies.set(id, this.copyEnemy(enemy));
+    }
+    for (const [id, solid] of state.solids) {
+      this.solids.set(id, this.copySolid(solid));
     }
     if (statusChanged) {
       this.gameStatusChanges.emit({ status: state.status });
@@ -90,6 +97,16 @@ export default class GameService {
       return false;
     }
 
+    this.emitStateChange();
+    return true;
+  }
+
+  addSolid(solid: SolidState): boolean {
+    if (this.solids.has(solid.id)) {
+      return false;
+    }
+
+    this.solids.set(solid.id, this.copySolid(solid));
     this.emitStateChange();
     return true;
   }
@@ -133,6 +150,7 @@ export default class GameService {
         status: this.state.status,
         players: new Map(this.players),
         enemies: new Map(this.enemies),
+        solids: new Map(this.solids),
       },
     });
   }
@@ -143,5 +161,9 @@ export default class GameService {
 
   private copyEnemy(enemy: EnemyState): EnemyState {
     return { ...enemy, position: { ...enemy.position } };
+  }
+
+  private copySolid(solid: SolidState): SolidState {
+    return { ...solid, position: { ...solid.position } };
   }
 }

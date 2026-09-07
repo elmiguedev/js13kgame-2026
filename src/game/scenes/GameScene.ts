@@ -4,12 +4,15 @@ import Scene from "../../lib/Scene";
 import GameController from "../controllers/GameController";
 import type { MoveType } from "../domain/MoveType";
 import type PlayerState from "../domain/PlayerState";
+import type SolidState from "../domain/SolidState";
 import PlayerEntity from "../entities/PlayerEntity";
+import SolidEntity from "../entities/SolidEntity";
 
 export default class GameScene extends Scene {
   private readonly spriteSheet = new SpriteSheet("./spritesheet.png", 8, 8, 8, 8);
   private readonly gameController = GameController.getInstance();
   private readonly playerEntities = new Map<string, PlayerEntity>();
+  private readonly solidEntities = new Map<string, SolidEntity>();
   private unsubscribeGameState: (() => void) | undefined;
 
   constructor() {
@@ -29,6 +32,7 @@ export default class GameScene extends Scene {
   private createEvents(): void {
     this.unsubscribeGameState = this.gameController.onGameStateChange((event) => {
       console.log("Game state changed:", event);
+      this.syncSolidEntities(event.state.solids);
       this.syncPlayerEntities(event.state.players);
     });
   }
@@ -66,6 +70,25 @@ export default class GameScene extends Scene {
         if (id === localPlayerId) {
           this.camera.stopFollow();
         }
+      }
+    }
+  }
+
+  private syncSolidEntities(solids: ReadonlyMap<string, SolidState>): void {
+    for (const [id, solid] of solids) {
+      const entity = this.solidEntities.get(id);
+      if (entity) {
+        entity.updateState(solid);
+      } else {
+        const solidEntity = this.entities.add(new SolidEntity(this.spriteSheet, solid));
+        this.solidEntities.set(id, solidEntity);
+      }
+    }
+
+    for (const [id, entity] of this.solidEntities) {
+      if (!solids.has(id)) {
+        this.entities.remove(entity.id);
+        this.solidEntities.delete(id);
       }
     }
   }
