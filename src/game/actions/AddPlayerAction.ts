@@ -9,7 +9,7 @@ export default class AddPlayerAction implements Action<string, boolean> {
       return false;
     }
 
-    const playerToAdd = { id, hp: 100, position: { x: 0, y: 0 } };
+    const playerToAdd = { id, hp: 100, position: { x: 0, y: 0 }, ready: false };
     console.log(`Adding player ${id} with initial state:`, playerToAdd);
     return this.gameService.addPlayer(playerToAdd);
   }

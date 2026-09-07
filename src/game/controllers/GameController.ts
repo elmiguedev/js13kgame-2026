@@ -1,5 +1,6 @@
 import AddPlayerAction from "../actions/AddPlayerAction";
 import MovePlayerAction from "../actions/MovePlayerAction";
+import SetPlayerReadyAction from "../actions/SetPlayerReadyAction";
 import RoomController, { type RoomJoined, type RoomPlayerType } from "./RoomController";
 import type GameStateChange from "../events/GameStateChange";
 import type GameStatusChange from "../events/GameStatusChange";
@@ -25,6 +26,7 @@ export default class GameController {
   public readonly actions = {
     addPlayer: new AddPlayerAction(this.gameService),
     movePlayer: new MovePlayerAction(this.gameService),
+    setPlayerReady: new SetPlayerReadyAction(this.gameService),
   };
 
   // observables
@@ -59,12 +61,18 @@ export default class GameController {
           id: playerId,
           hp: 100,
           position: { x: 0, y: 0 },
+          ready: false,
         };
         players.set(playerId, player);
       }
       this.gameService.setPlayers(players);
     });
     this.roomController.onStateReceived((state) => this.applyState(state));
+    this.roomController.onPlayerReady((playerId) => {
+      if (this.roomController.isHost) {
+        this.actions.setPlayerReady.execute(playerId);
+      }
+    });
   }
 
   // methods
@@ -84,6 +92,15 @@ export default class GameController {
 
   public hostRoom(): string {
     return this.roomController.hostRoom();
+  }
+
+  public setLocalPlayerReady(): boolean {
+    if (this.roomController.isHost) {
+      const playerId = this.roomController.localPlayerId;
+      return playerId ? this.actions.setPlayerReady.execute(playerId) : false;
+    }
+
+    return this.roomController.sendReady();
   }
 
   public onPlayerJoinRoom(listener: ObservableListener<RoomJoined>): () => void {
@@ -130,10 +147,11 @@ export default class GameController {
       return false;
     }
 
-    const player = value as { id?: unknown; hp?: unknown; position?: { x?: unknown; y?: unknown } };
+    const player = value as { id?: unknown; hp?: unknown; ready?: unknown; position?: { x?: unknown; y?: unknown } };
     return typeof player.id === "string"
       && typeof player.hp === "number"
       && Number.isFinite(player.hp)
+      && typeof player.ready === "boolean"
       && typeof player.position?.x === "number"
       && Number.isFinite(player.position.x)
       && typeof player.position?.y === "number"

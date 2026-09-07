@@ -15,8 +15,10 @@ export default class RoomController {
   private readonly playerJoined = new Observable<RoomJoined>();
   private readonly playersReceived = new Observable<readonly string[]>();
   private readonly stateReceived = new Observable<string>();
+  private readonly playerReady = new Observable<string>();
   private roomCode: string | undefined;
   private playerType: RoomPlayerType | undefined;
+  private clientId: string | undefined;
 
   constructor() {
     this.socket.on(this.handleSocketEvent);
@@ -37,6 +39,7 @@ export default class RoomController {
     const protocol = location.protocol === "https:" ? "wss" : "ws";
     this.roomCode = normalizedRoomCode;
     this.playerType = playerType;
+    this.clientId = undefined;
     this.socket.connect(`${protocol}://${location.host}/relay/${encodeURIComponent(normalizedRoomCode)}`);
     return true;
   }
@@ -53,6 +56,10 @@ export default class RoomController {
     return this.stateReceived.subscribe(listener);
   }
 
+  onPlayerReady(listener: ObservableListener<string>): () => void {
+    return this.playerReady.subscribe(listener);
+  }
+
   sendPlayers(clientId: string, playerIds: readonly string[]): boolean {
     return this.socket.sendTo(clientId, `players|${playerIds.join(",")}`);
   }
@@ -61,8 +68,16 @@ export default class RoomController {
     return this.socket.send(`state|${state}`);
   }
 
+  sendReady(): boolean {
+    return this.clientId ? this.socket.send(`ready|${this.clientId}`) : false;
+  }
+
   get isHost(): boolean {
     return this.playerType === "HOST";
+  }
+
+  get localPlayerId(): string | undefined {
+    return this.clientId;
   }
 
   destroy(): void {
@@ -73,6 +88,7 @@ export default class RoomController {
     if (event.type === "open") {
       console.log(`Connecting to room ${this.roomCode}`);
     } else if (event.type === "id" && this.roomCode && this.playerType) {
+      this.clientId = event.clientId;
       console.log(`Joined room ${this.roomCode} as ${event.clientId}`);
       this.playerJoined.emit({
         playerType: this.playerType,
@@ -105,6 +121,8 @@ export default class RoomController {
       this.playersReceived.emit(value ? value.split(",") : []);
     } else if (type === "state") {
       this.stateReceived.emit(value);
+    } else if (type === "ready" && value) {
+      this.playerReady.emit(value);
     }
   }
 }

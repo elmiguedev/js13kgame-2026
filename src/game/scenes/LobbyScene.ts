@@ -1,3 +1,4 @@
+import Button from "../../lib/entities/Button";
 import Text from "../../lib/entities/Text";
 import Scene from "../../lib/Scene";
 import GameController from "../controllers/GameController";
@@ -30,6 +31,7 @@ export default class LobbyScene extends Scene {
     this.createPlayerTypeText();
     this.createRoomCodeText();
     this.createPlayerList();
+    this.createStartButton();
     this.createRoomEvents();
   }
 
@@ -54,6 +56,14 @@ export default class LobbyScene extends Scene {
     ));
   }
 
+  private createStartButton(): void {
+    this.entities.add(new Button({ x: 48, y: 136, text: "START", onClick: this.setLocalPlayerReady }));
+  }
+
+  private readonly setLocalPlayerReady = (): void => {
+    this.gameController.setLocalPlayerReady();
+  };
+
   private createRoomEvents(): void {
     this.unsubscribePlayerJoinRoom = this.gameController.onPlayerJoinRoom(({ playerType, roomCode }) => {
       console.log("Player joined room:", playerType, roomCode);
@@ -61,6 +71,9 @@ export default class LobbyScene extends Scene {
     this.unsubscribeGameState = this.gameController.onGameStateChange(({ state }) => {
       this.playerListEntity.updatePlayers(state.players);
       console.log("Game state changed:", state);
+      if (state.players.size > 0 && Array.from(state.players.values()).every((player) => player.ready)) {
+        this.scene.start("GameScene");
+      }
     });
   }
 

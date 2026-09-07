@@ -4,4 +4,5 @@ export default interface PlayerState {
   readonly position: Readonly<Position>;
   readonly hp: number;
   readonly id: string;
+  readonly ready: boolean;
 }
