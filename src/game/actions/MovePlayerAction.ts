@@ -19,10 +19,10 @@ export default class MovePlayerAction implements Action<MovePlayerInput, boolean
     console.log(`Moving player ${id} in direction ${direction}`);
 
     const position = { ...player.position };
-    if (direction === "up") position.y -= 1;
-    else if (direction === "down") position.y += 1;
-    else if (direction === "left") position.x -= 1;
-    else position.x += 1;
+    if (direction === "up") position.y -= 8;
+    else if (direction === "down") position.y += 8;
+    else if (direction === "left") position.x -= 8;
+    else position.x += 8;
 
     return this.gameService.updatePlayer({ ...player, position });
   }

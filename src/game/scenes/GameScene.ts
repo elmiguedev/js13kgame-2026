@@ -42,13 +42,20 @@ export default class GameScene extends Scene {
   }
 
   private syncPlayerEntities(players: ReadonlyMap<string, PlayerState>): void {
+    const localPlayerId = this.gameController.localPlayerId;
     for (const [id, player] of players) {
       const entity = this.playerEntities.get(id);
       if (entity) {
         entity.updateState(player);
+        if (id === localPlayerId) {
+          this.camera.startFollow(entity);
+        }
       } else {
         const playerEntity = this.entities.add(new PlayerEntity(this.spriteSheet, player));
         this.playerEntities.set(id, playerEntity);
+        if (id === localPlayerId) {
+          this.camera.startFollow(playerEntity);
+        }
       }
     }
 
@@ -56,6 +63,9 @@ export default class GameScene extends Scene {
       if (!players.has(id)) {
         this.entities.remove(entity.id);
         this.playerEntities.delete(id);
+        if (id === localPlayerId) {
+          this.camera.stopFollow();
+        }
       }
     }
   }
