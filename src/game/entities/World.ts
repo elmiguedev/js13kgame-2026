@@ -1,9 +1,9 @@
 import type Position from "../../lib/common/Position";
 import type { MoveType } from "../domain/MoveType";
-import GridObjectEntity from "./GridObjectEntity";
+import GridObject from "./GridObject";
 
-export default class WorldEntity {
-  private readonly objects = new Map<string, GridObjectEntity>();
+export default class World {
+  private readonly objects = new Map<string, GridObject>();
 
   constructor(readonly cellSize = 8) {
     if (!Number.isInteger(cellSize) || cellSize <= 0) {
@@ -11,7 +11,7 @@ export default class WorldEntity {
     }
   }
 
-  addObject(object: GridObjectEntity): boolean {
+  addObject(object: GridObject): boolean {
     if (this.objects.has(object.id) || (object.solid && this.hasSolidObjectAt(object.position))) {
       return false;
     }

@@ -1,5 +1,5 @@
 import type { MoveType } from "../domain/MoveType";
-import WorldEntity from "../entities/WorldEntity";
+import World from "../entities/World";
 import GameService from "../services/GameService";
 import type Action from "./Action";
 
@@ -11,7 +11,7 @@ export interface MovePlayerInput {
 export default class MovePlayerAction implements Action<MovePlayerInput, boolean> {
   constructor(
     private readonly gameService: GameService,
-    private readonly world: WorldEntity,
+    private readonly world: World,
   ) { }
 
   execute({ id, direction }: MovePlayerInput): boolean {

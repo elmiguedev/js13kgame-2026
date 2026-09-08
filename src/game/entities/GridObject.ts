@@ -6,7 +6,7 @@ export interface GridObjectConfig {
   solid?: boolean;
 }
 
-export default class GridObjectEntity {
+export default class GridObject {
   readonly id: string;
   readonly solid: boolean;
   readonly position: Position;

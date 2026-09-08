@@ -2,10 +2,13 @@ import { Keys } from "../../lib/controllers/KeyboardController";
 import SpriteSheet from "../../lib/entities/SpriteSheet";
 import Scene from "../../lib/Scene";
 import GameController from "../controllers/GameController";
+import type EnemyState from "../domain/EnemyState";
 import type { MoveType } from "../domain/MoveType";
 import type PlayerState from "../domain/PlayerState";
 import type SolidState from "../domain/SolidState";
+import EnemyFactory from "../entities/EnemyFactory";
 import FogOfWar from "../entities/FogOfWar";
+import EnemyEntity from "../entities/EnemyEntity";
 import PlayerEntity from "../entities/PlayerEntity";
 import SolidEntity from "../entities/SolidEntity";
 
@@ -14,6 +17,7 @@ export default class GameScene extends Scene {
   private readonly gameController = GameController.getInstance();
   private readonly fog = new FogOfWar({ clearRadius: 3, fadeDistance: 2, useLineOfSight: false });
   private readonly playerEntities = new Map<string, PlayerEntity>();
+  private readonly enemyEntities = new Map<string, EnemyEntity>();
   private readonly solidEntities = new Map<string, SolidEntity>();
   private unsubscribeGameState: (() => void) | undefined;
 
@@ -37,6 +41,7 @@ export default class GameScene extends Scene {
       console.log("Game state changed:", event);
       this.syncSolidEntities(event.state.solids);
       this.syncPlayerEntities(event.state.players);
+      this.syncEnemyEntities(event.state.enemies);
       this.updateFog();
     });
   }
@@ -97,10 +102,30 @@ export default class GameScene extends Scene {
     }
   }
 
+  private syncEnemyEntities(enemies: ReadonlyMap<string, EnemyState>): void {
+    for (const [id, enemy] of enemies) {
+      const entity = this.enemyEntities.get(id);
+      if (entity) {
+        entity.updateState(enemy);
+      } else {
+        const enemyEntity = this.entities.add(new EnemyEntity(this.spriteSheet, enemy, EnemyFactory.genericMonsterAnimation));
+        this.enemyEntities.set(id, enemyEntity);
+      }
+    }
+
+    for (const [id, entity] of this.enemyEntities) {
+      if (!enemies.has(id)) {
+        this.entities.remove(entity.id);
+        this.enemyEntities.delete(id);
+      }
+    }
+  }
+
   private updateFog(): void {
     const localPlayerId = this.gameController.localPlayerId;
     const localPlayer = localPlayerId ? this.playerEntities.get(localPlayerId) : undefined;
     this.fog.apply(localPlayer, this.playerEntities.values(), this.solidEntities.values());
+    this.fog.apply(localPlayer, this.enemyEntities.values(), this.solidEntities.values());
     this.fog.apply(localPlayer, this.solidEntities.values(), this.solidEntities.values());
   }
 

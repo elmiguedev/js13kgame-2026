@@ -5,6 +5,7 @@ import type GameStatusChange from "../events/GameStatusChange";
 import type GameState from "../domain/GameState";
 import type { GameStateType } from "../domain/GameStateType";
 import type { MoveType } from "../domain/MoveType";
+import type EnemyState from "../domain/EnemyState";
 import type PlayerState from "../domain/PlayerState";
 import type SolidState from "../domain/SolidState";
 import GameService from "../services/GameService";
@@ -121,6 +122,7 @@ export default class GameController {
     return JSON.stringify({
       status: state.status,
       players: Array.from(state.players.values()),
+      enemies: Array.from(state.enemies.values()),
       solids: Array.from(state.solids.values()),
     });
   }
@@ -140,25 +142,31 @@ export default class GameController {
       for (const player of value.players) {
         players.set(player.id, player);
       }
+      const enemies = new Map<string, EnemyState>();
+      for (const enemy of value.enemies) {
+        enemies.set(enemy.id, enemy);
+      }
       const solids = new Map<string, SolidState>();
       for (const solid of value.solids) {
         solids.set(solid.id, solid);
       }
-      this.gameService.setState({ status: value.status, players, enemies: new Map(), solids });
+      this.gameService.setState({ status: value.status, players, enemies, solids });
     } catch {
       // Ignore malformed state messages from the relay.
     }
   }
 
-  private isSerializedState(value: unknown): value is { status: GameStateType; players: PlayerState[]; solids: SolidState[] } {
+  private isSerializedState(value: unknown): value is { status: GameStateType; players: PlayerState[]; enemies: EnemyState[]; solids: SolidState[] } {
     if (!value || typeof value !== "object") {
       return false;
     }
 
-    const state = value as { status?: unknown; players?: unknown; solids?: unknown };
+    const state = value as { status?: unknown; players?: unknown; enemies?: unknown; solids?: unknown };
     return (state.status === "lobby" || state.status === "game")
       && Array.isArray(state.players)
       && state.players.every((player) => this.isPlayerState(player))
+      && Array.isArray(state.enemies)
+      && state.enemies.every((enemy) => this.isEnemyState(enemy))
       && Array.isArray(state.solids)
       && state.solids.every((solid) => this.isSolidState(solid));
   }
@@ -193,5 +201,20 @@ export default class GameController {
       && Number.isFinite(solid.position.x)
       && typeof solid.position?.y === "number"
       && Number.isFinite(solid.position.y);
+  }
+
+  private isEnemyState(value: unknown): value is EnemyState {
+    if (!value || typeof value !== "object") {
+      return false;
+    }
+
+    const enemy = value as { id?: unknown; hp?: unknown; position?: { x?: unknown; y?: unknown } };
+    return typeof enemy.id === "string"
+      && typeof enemy.hp === "number"
+      && Number.isFinite(enemy.hp)
+      && typeof enemy.position?.x === "number"
+      && Number.isFinite(enemy.position.x)
+      && typeof enemy.position?.y === "number"
+      && Number.isFinite(enemy.position.y);
   }
 }
