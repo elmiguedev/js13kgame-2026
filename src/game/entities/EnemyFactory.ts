@@ -19,6 +19,13 @@ export default class EnemyFactory {
       loop: true,
     },
   };
+  static readonly bossAnimation: SpriteSheetAnimations = {
+    idle: {
+      frames: [8, 10],
+      frameDuration: 400,
+      loop: true,
+    },
+  };
 
   static createBeholder(position: Position): Enemy {
     return new Enemy(`beholder-${this.nextId++}`, position, "beholder", 8);
@@ -28,7 +35,11 @@ export default class EnemyFactory {
     return new Enemy(`mole-${this.nextId++}`, position, "mole", 3);
   }
 
+  static createBoss(position: Position): Enemy {
+    return new Enemy(`boss-${this.nextId++}`, position, "boss", 20, 6, 2, 2);
+  }
+
   static getAnimation(type: EnemyType): SpriteSheetAnimations {
-    return type === "beholder" ? this.beholderAnimation : this.moleAnimation;
+    return type === "beholder" ? this.beholderAnimation : type === "boss" ? this.bossAnimation : this.moleAnimation;
   }
 }

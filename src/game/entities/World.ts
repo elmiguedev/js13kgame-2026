@@ -12,7 +12,7 @@ export default class World {
   }
 
   addObject(object: GridObject): boolean {
-    if (this.objects.has(object.id) || (object.solid && this.hasSolidObjectAt(object.position))) {
+    if (this.objects.has(object.id) || (object.solid && !this.canOccupy(object, object.position))) {
       return false;
     }
 
@@ -48,7 +48,7 @@ export default class World {
     }
 
     const position = this.getNextPosition(object.position, direction);
-    if (this.hasSolidObjectAt(position)) {
+    if (!this.canOccupy(object, position, object.id)) {
       return undefined;
     }
 
@@ -60,13 +60,24 @@ export default class World {
     return { x: position.x * this.cellSize, y: position.y * this.cellSize };
   }
 
-  private hasSolidObjectAt(position: Position): boolean {
-    return Boolean(this.getObjectAt(position, true));
+  private hasSolidObjectAt(position: Position, excludedId?: string): boolean {
+    return Boolean(this.getObjectAt(position, true, excludedId));
   }
 
-  private getObjectAt(position: Position, solidOnly = false): GridObject | undefined {
+  private canOccupy(object: GridObject, position: Position, excludedId?: string): boolean {
+    for (let y = position.y; y < position.y + object.height; y += 1) {
+      for (let x = position.x; x < position.x + object.width; x += 1) {
+        if (this.hasSolidObjectAt({ x, y }, excludedId)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  private getObjectAt(position: Position, solidOnly = false, excludedId?: string): GridObject | undefined {
     for (const object of this.objects.values()) {
-      if ((!solidOnly || object.solid) && object.position.x === position.x && object.position.y === position.y) {
+      if (object.id !== excludedId && (!solidOnly || object.solid) && object.occupies(position)) {
         return object;
       }
     }

@@ -14,6 +14,8 @@ export interface SpriteSheetSpriteConfig extends ObjectConfig {
   frame: number;
   width?: number;
   height?: number;
+  sourceWidth?: number;
+  sourceHeight?: number;
   animations?: SpriteSheetAnimations;
 }
 
@@ -21,12 +23,14 @@ export default class SpriteSheetSprite extends GameObject {
   readonly anims: SpriteSheetSpriteAnimations;
   readonly width: number;
   readonly height: number;
+  readonly sourceWidth: number;
+  readonly sourceHeight: number;
   visible = true;
   alpha = 1;
   private currentFrame: number;
 
-  constructor({ spriteSheet, frame, width = spriteSheet.frameWidth, height = spriteSheet.frameHeight, animations = {}, hitArea, ...objectConfig }: SpriteSheetSpriteConfig) {
-    if (width <= 0 || height <= 0) {
+  constructor({ spriteSheet, frame, width = spriteSheet.frameWidth, height = spriteSheet.frameHeight, sourceWidth = spriteSheet.frameWidth, sourceHeight = spriteSheet.frameHeight, animations = {}, hitArea, ...objectConfig }: SpriteSheetSpriteConfig) {
+    if ([width, height, sourceWidth, sourceHeight].some((value) => value <= 0)) {
       throw new Error("SpriteSheetSprite dimensions must be positive.");
     }
     spriteSheet.at(frame);
@@ -44,6 +48,8 @@ export default class SpriteSheetSprite extends GameObject {
     this.currentFrame = frame;
     this.width = width;
     this.height = height;
+    this.sourceWidth = sourceWidth;
+    this.sourceHeight = sourceHeight;
     this.anims = new SpriteSheetSpriteAnimations(this, animations);
   }
 
@@ -74,8 +80,8 @@ export default class SpriteSheetSprite extends GameObject {
       image,
       frame.x,
       frame.y,
-      frame.width,
-      frame.height,
+      this.sourceWidth,
+      this.sourceHeight,
       Math.round(this.position.x),
       Math.round(this.position.y),
       this.width,

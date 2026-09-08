@@ -101,11 +101,8 @@ export default class RoomController {
   }
 
   private readonly handleSocketEvent = (event: SocketEvent): void => {
-    if (event.type === "open") {
-      console.log(`Connecting to room ${this.roomCode}`);
-    } else if (event.type === "id" && this.roomCode && this.playerType) {
+    if (event.type === "id" && this.roomCode && this.playerType) {
       this.clientId = event.clientId;
-      console.log(`Joined room ${this.roomCode} as ${event.clientId}`);
       this.playerJoined.emit({
         playerType: this.playerType,
         roomCode: this.roomCode,
@@ -113,7 +110,6 @@ export default class RoomController {
         isLocal: true,
       });
     } else if (event.type === "connect" && this.roomCode) {
-      console.log(`Player ${event.clientId} joined room ${this.roomCode}`);
       this.playerJoined.emit({
         playerType: "GUEST",
         roomCode: this.roomCode,
@@ -122,10 +118,6 @@ export default class RoomController {
       });
     } else if (event.type === "message") {
       this.handleRoomMessage(event.data);
-    } else if (event.type === "error") {
-      console.error(`Could not join room ${this.roomCode}`);
-    } else if (event.type === "close") {
-      console.log(`Left room ${this.roomCode}`);
     }
   };
 

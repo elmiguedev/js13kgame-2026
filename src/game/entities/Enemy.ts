@@ -8,8 +8,8 @@ export default class Enemy extends GridObject {
   readonly type: EnemyType;
   readonly visionRange: number;
 
-  constructor(id: string, position: Position, type: EnemyType, hp: number, visionRange = 4) {
-    super({ id, position, solid: true });
+  constructor(id: string, position: Position, type: EnemyType, hp: number, visionRange = 4, width = 1, height = 1) {
+    super({ id, position, solid: true, width, height });
     if (!Number.isFinite(visionRange) || visionRange < 0) {
       throw new Error("Enemy vision range must be non-negative.");
     }
@@ -27,6 +27,6 @@ export default class Enemy extends GridObject {
   }
 
   toState(position: Position): EnemyState {
-    return { id: this.id, type: this.type, hp: this.hp, visionRange: this.visionRange, position };
+    return { id: this.id, type: this.type, hp: this.hp, visionRange: this.visionRange, width: this.width, height: this.height, position };
   }
 }

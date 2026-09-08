@@ -16,7 +16,6 @@ export default class AddPlayerAction implements Action<AddPlayerInput, boolean> 
     }
 
     const playerToAdd = { id, hp: 100, position, ready: false };
-    console.log(`Adding player ${id} with initial state:`, playerToAdd);
     return this.gameService.addPlayer(playerToAdd);
   }
 }

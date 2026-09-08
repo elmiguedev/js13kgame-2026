@@ -38,7 +38,6 @@ export default class GameScene extends Scene {
 
   private createEvents(): void {
     this.unsubscribeGameState = this.gameController.onGameStateChange((event) => {
-      console.log("Game state changed:", event);
       this.syncSolidEntities(event.state.solids);
       this.syncPlayerEntities(event.state.players);
       this.syncEnemyEntities(event.state.enemies);

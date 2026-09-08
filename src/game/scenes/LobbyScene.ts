@@ -16,7 +16,6 @@ export default class LobbyScene extends Scene {
   private roomCode = "";
   private gameController = GameController.getInstance();
   private readonly playerListEntities = new Map<string, PlayerListEntity>();
-  private unsubscribePlayerJoinRoom: (() => void) | undefined;
   private unsubscribeGameState: (() => void) | undefined;
 
   constructor() {
@@ -58,12 +57,8 @@ export default class LobbyScene extends Scene {
   };
 
   private createRoomEvents(): void {
-    this.unsubscribePlayerJoinRoom = this.gameController.onPlayerJoinRoom(({ playerType, roomCode }) => {
-      console.log("Player joined room:", playerType, roomCode);
-    });
     this.unsubscribeGameState = this.gameController.onGameStateChange(({ state }) => {
       this.syncPlayerList(state.players);
-      console.log("Game state changed:", state);
       if (state.players.size > 0 && Array.from(state.players.values()).every((player) => player.ready)) {
         this.scene.start("GameScene");
       }
@@ -93,8 +88,6 @@ export default class LobbyScene extends Scene {
   }
 
   override shutdown(): void {
-    this.unsubscribePlayerJoinRoom?.();
-    this.unsubscribePlayerJoinRoom = undefined;
     this.unsubscribeGameState?.();
     this.unsubscribeGameState = undefined;
   }

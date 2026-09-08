@@ -32,7 +32,6 @@ export default class MovePlayerAction implements Action<MovePlayerInput, boolean
       return false;
     }
 
-    console.log(`Moving player ${id} in direction ${direction}`);
     return this.gameService.updatePlayer({ ...player, position });
   }
 }

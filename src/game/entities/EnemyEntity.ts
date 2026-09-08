@@ -17,6 +17,10 @@ export default class EnemyEntity extends SpriteSheetSprite {
       y: state.position.y,
       spriteSheet,
       frame: animation.frames[0]!,
+      width: state.width * 8,
+      height: state.height * 8,
+      sourceWidth: state.width * 8,
+      sourceHeight: state.height * 8,
       animations,
     });
     this.hp = state.hp;

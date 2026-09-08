@@ -29,6 +29,7 @@ export default class GameServer {
     const dungeon = this.mazeBuilder.build();
     this.createMaze(dungeon.walls);
     this.createEnemies(dungeon.floors);
+    this.createBoss(dungeon.floors);
   }
 
   onGameStateChange(listener: ObservableListener<GameStateChange>): () => void {
@@ -94,6 +95,20 @@ export default class GameServer {
       if (!this.gameService.addEnemy(enemy.id, enemy.toState(this.world.toWorldPosition(enemy.position)))) {
         this.world.removeObject(enemy.id);
       }
+    }
+  }
+
+  private createBoss(floors: readonly Position[]): void {
+    for (const position of this.getRandomPositions(floors, floors.length)) {
+      const boss = EnemyFactory.createBoss(position);
+      if (!this.world.addObject(boss)) {
+        continue;
+      }
+
+      if (!this.gameService.addEnemy(boss.id, boss.toState(this.world.toWorldPosition(boss.position)))) {
+        this.world.removeObject(boss.id);
+      }
+      return;
     }
   }
 
