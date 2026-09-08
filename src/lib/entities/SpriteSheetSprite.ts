@@ -22,6 +22,7 @@ export default class SpriteSheetSprite extends GameObject {
   readonly width: number;
   readonly height: number;
   visible = true;
+  alpha = 1;
   private currentFrame: number;
 
   constructor({ spriteSheet, frame, width = spriteSheet.frameWidth, height = spriteSheet.frameHeight, animations = {}, hitArea, ...objectConfig }: SpriteSheetSpriteConfig) {
@@ -57,7 +58,7 @@ export default class SpriteSheetSprite extends GameObject {
   }
 
   override render(context: CanvasRenderingContext2D): void {
-    if (!this.visible) {
+    if (!this.visible || this.alpha <= 0) {
       return;
     }
 
@@ -66,6 +67,8 @@ export default class SpriteSheetSprite extends GameObject {
       return;
     }
 
+    context.save();
+    context.globalAlpha *= this.alpha;
     const frame = this.spriteSheet.at(this.currentFrame);
     context.drawImage(
       image,
@@ -78,6 +81,7 @@ export default class SpriteSheetSprite extends GameObject {
       this.width,
       this.height,
     );
+    context.restore();
   }
 
   setFrame(frame: number): void {

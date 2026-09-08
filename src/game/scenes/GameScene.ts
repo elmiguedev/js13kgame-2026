@@ -12,7 +12,7 @@ import SolidEntity from "../entities/SolidEntity";
 export default class GameScene extends Scene {
   private readonly spriteSheet = new SpriteSheet("./spritesheet.png", 8, 8, 8, 8);
   private readonly gameController = GameController.getInstance();
-  private readonly fog = new FogOfWar();
+  private readonly fog = new FogOfWar({ clearRadius: 3, fadeDistance: 2, useLineOfSight: false });
   private readonly playerEntities = new Map<string, PlayerEntity>();
   private readonly solidEntities = new Map<string, SolidEntity>();
   private unsubscribeGameState: (() => void) | undefined;
@@ -22,6 +22,7 @@ export default class GameScene extends Scene {
   }
 
   override create(): void {
+    this.camera.setZoom(2);
     this.createKeys();
     this.createEvents();
   }
@@ -99,8 +100,8 @@ export default class GameScene extends Scene {
   private updateFog(): void {
     const localPlayerId = this.gameController.localPlayerId;
     const localPlayer = localPlayerId ? this.playerEntities.get(localPlayerId) : undefined;
-    this.fog.apply(localPlayer, this.playerEntities.values());
-    this.fog.apply(localPlayer, this.solidEntities.values());
+    this.fog.apply(localPlayer, this.playerEntities.values(), this.solidEntities.values());
+    this.fog.apply(localPlayer, this.solidEntities.values(), this.solidEntities.values());
   }
 
   private movePlayer(direction: MoveType): void {

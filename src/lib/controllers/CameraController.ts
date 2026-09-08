@@ -4,6 +4,7 @@ import Controller from "./Controller";
 
 export default class CameraController extends Controller {
   readonly position: Position = { x: 0, y: 0 };
+  private zoom = 1;
   private target: GameObject | undefined;
 
   startFollow<T extends GameObject>(target: T): T {
@@ -15,6 +16,17 @@ export default class CameraController extends Controller {
     this.target = undefined;
   }
 
+  setZoom(zoom: number): void {
+    if (!Number.isFinite(zoom) || zoom <= 0) {
+      throw new Error("Camera zoom must be greater than zero.");
+    }
+    this.zoom = zoom;
+  }
+
+  get scale(): number {
+    return this.zoom;
+  }
+
   get offset(): Position | undefined {
     if (!this.target) {
       return undefined;
@@ -22,15 +34,15 @@ export default class CameraController extends Controller {
 
     const canvas = this.scene.game.canvas;
     return {
-      x: Math.round(canvas.width / 2 - this.position.x),
-      y: Math.round(canvas.height / 2 - this.position.y),
+      x: Math.round(canvas.width / 2 - this.position.x * this.zoom),
+      y: Math.round(canvas.height / 2 - this.position.y * this.zoom),
     };
   }
 
   screenToWorld(position: Position): Position {
     const offset = this.offset;
     return offset
-      ? { x: position.x - offset.x, y: position.y - offset.y }
+      ? { x: (position.x - offset.x) / this.zoom, y: (position.y - offset.y) / this.zoom }
       : position;
   }
 

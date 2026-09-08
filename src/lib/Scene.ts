@@ -153,7 +153,7 @@ export default class Scene {
     this.game.renderer.clear(this.backgroundColor);
     const cameraOffset = this.camera.offset;
     if (cameraOffset) {
-      this.game.renderer.pushTransform(cameraOffset.x, cameraOffset.y);
+      this.game.renderer.pushTransform(cameraOffset.x, cameraOffset.y, this.camera.scale);
     }
     this.entities.render(this.game.renderer);
     if (cameraOffset) {

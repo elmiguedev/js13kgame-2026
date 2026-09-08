@@ -60,9 +60,10 @@ export default class CanvasRenderer implements Renderer {
     }
   }
 
-  pushTransform(x: number, y: number): void {
+  pushTransform(x: number, y: number, scale = 1): void {
     this.context.save();
     this.context.translate(x, y);
+    this.context.scale(scale, scale);
   }
 
   popTransform(): void {
