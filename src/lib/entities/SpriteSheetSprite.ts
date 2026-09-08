@@ -30,19 +30,6 @@ export default class SpriteSheetSprite extends GameObject {
   private currentFrame: number;
 
   constructor({ spriteSheet, frame, width = spriteSheet.frameWidth, height = spriteSheet.frameHeight, sourceWidth = spriteSheet.frameWidth, sourceHeight = spriteSheet.frameHeight, animations = {}, hitArea, ...objectConfig }: SpriteSheetSpriteConfig) {
-    if ([width, height, sourceWidth, sourceHeight].some((value) => value <= 0)) {
-      throw new Error("SpriteSheetSprite dimensions must be positive.");
-    }
-    spriteSheet.at(frame);
-    for (const animation of Object.values(animations)) {
-      if (!animation.frames.length || !Number.isFinite(animation.frameDuration ?? 150) || (animation.frameDuration ?? 150) <= 0) {
-        throw new Error("SpriteSheetSprite animations need frames and a positive frameDuration.");
-      }
-      for (const animationFrame of animation.frames) {
-        spriteSheet.at(animationFrame);
-      }
-    }
-
     super({ ...objectConfig, hitArea: hitArea ?? { width, height } });
     this.spriteSheet = spriteSheet;
     this.currentFrame = frame;
@@ -91,7 +78,6 @@ export default class SpriteSheetSprite extends GameObject {
   }
 
   setFrame(frame: number): void {
-    this.spriteSheet.at(frame);
     this.currentFrame = frame;
   }
 }

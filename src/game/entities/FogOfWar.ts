@@ -20,9 +20,6 @@ export default class FogOfWar {
   private readonly useLineOfSight: boolean;
 
   constructor({ clearRadius = 3, fadeDistance = 2, cellSize = 8, useLineOfSight = true }: FogOfWarConfig = {}) {
-    if (![clearRadius, fadeDistance].every((value) => Number.isFinite(value) && value >= 0) || !Number.isInteger(cellSize) || cellSize <= 0) {
-      throw new Error("Fog radii must be non-negative and cell size must be positive.");
-    }
     this.clearRadius = clearRadius * cellSize;
     this.fadeRadius = fadeDistance * cellSize;
     this.cellSize = cellSize;

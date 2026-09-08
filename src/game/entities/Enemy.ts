@@ -10,18 +10,12 @@ export default class Enemy extends GridObject {
 
   constructor(id: string, position: Position, type: EnemyType, hp: number, visionRange = 4, width = 1, height = 1) {
     super({ id, position, solid: true, width, height });
-    if (!Number.isFinite(visionRange) || visionRange < 0) {
-      throw new Error("Enemy vision range must be non-negative.");
-    }
     this.hp = hp;
     this.type = type;
     this.visionRange = visionRange;
   }
 
   takeDamage(damage: number): number {
-    if (!Number.isFinite(damage) || damage <= 0) {
-      throw new Error("Damage must be greater than zero.");
-    }
     this.hp -= damage;
     return this.hp;
   }

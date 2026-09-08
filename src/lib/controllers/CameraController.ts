@@ -17,9 +17,6 @@ export default class CameraController extends Controller {
   }
 
   setZoom(zoom: number): void {
-    if (!Number.isFinite(zoom) || zoom <= 0) {
-      throw new Error("Camera zoom must be greater than zero.");
-    }
     this.zoom = zoom;
   }
 

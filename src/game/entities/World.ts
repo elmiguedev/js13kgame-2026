@@ -5,11 +5,7 @@ import GridObject from "./GridObject";
 export default class World {
   private readonly objects = new Map<string, GridObject>();
 
-  constructor(readonly cellSize = 8) {
-    if (!Number.isInteger(cellSize) || cellSize <= 0) {
-      throw new Error("World cell size must be a positive integer.");
-    }
-  }
+  constructor(readonly cellSize = 8) {}
 
   addObject(object: GridObject): boolean {
     if (this.objects.has(object.id) || (object.solid && !this.canOccupy(object, object.position))) {

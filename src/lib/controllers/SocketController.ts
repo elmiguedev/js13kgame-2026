@@ -1,13 +1,9 @@
 import Controller from "./Controller";
 
 export type SocketEvent =
-  | { type: "open" }
   | { type: "id"; clientId: string }
   | { type: "connect"; clientId: string }
-  | { type: "disconnect"; clientId: string }
-  | { type: "message"; data: string }
-  | { type: "close" }
-  | { type: "error" };
+  | { type: "message"; data: string };
 
 export type SocketListener = (event: SocketEvent) => void;
 
@@ -59,10 +55,7 @@ export default class SocketController extends Controller {
     this.disconnect();
     this.url = url;
     this.socket = new WebSocket(url);
-    this.socket.addEventListener("open", this.handleOpen);
     this.socket.addEventListener("message", this.handleMessage);
-    this.socket.addEventListener("close", this.handleClose);
-    this.socket.addEventListener("error", this.handleError);
   }
 
   disconnect(): void {
@@ -70,10 +63,7 @@ export default class SocketController extends Controller {
       return;
     }
 
-    this.socket.removeEventListener("open", this.handleOpen);
     this.socket.removeEventListener("message", this.handleMessage);
-    this.socket.removeEventListener("close", this.handleClose);
-    this.socket.removeEventListener("error", this.handleError);
     this.socket.close();
     this.socket = undefined;
   }
@@ -91,10 +81,6 @@ export default class SocketController extends Controller {
     this.listeners.clear();
   }
 
-  private readonly handleOpen = (): void => {
-    this.emit({ type: "open" });
-  };
-
   private readonly handleMessage = (event: MessageEvent<string>): void => {
     if (typeof event.data !== "string") {
       return;
@@ -105,19 +91,9 @@ export default class SocketController extends Controller {
       this.emit({ type: "id", clientId });
     } else if (prefix === "+") {
       this.emit({ type: "connect", clientId });
-    } else if (prefix === "-") {
-      this.emit({ type: "disconnect", clientId });
     } else {
       this.emit({ type: "message", data: event.data });
     }
-  };
-
-  private readonly handleClose = (): void => {
-    this.emit({ type: "close" });
-  };
-
-  private readonly handleError = (): void => {
-    this.emit({ type: "error" });
   };
 
   private emit(event: SocketEvent): void {

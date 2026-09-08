@@ -16,9 +16,6 @@ export default class GridObject {
   readonly height: number;
 
   constructor({ id, position, solid = false, width = 1, height = 1 }: GridObjectConfig) {
-    if (![width, height].every((value) => Number.isInteger(value) && value > 0)) {
-      throw new Error("Grid object size must be positive integers.");
-    }
     this.id = id;
     this.solid = solid;
     this.position = { ...position };
