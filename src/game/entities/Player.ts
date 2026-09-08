@@ -3,6 +3,7 @@ import type { MoveType } from "../domain/MoveType";
 import GridObject from "./GridObject";
 
 export default class Player extends GridObject {
+  static readonly maxHp = 100;
   private facing: MoveType = "down";
 
   constructor(id: string, position: Position) {

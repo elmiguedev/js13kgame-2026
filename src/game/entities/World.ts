@@ -29,12 +29,21 @@ export default class World {
     return object ? this.getObjectAt(this.getNextPosition(object.position, direction)) : undefined;
   }
 
-  findFreePosition(): Position {
+  findFreePosition(excludedId?: string): Position {
     let x = 0;
-    while (this.hasSolidObjectAt({ x, y: 0 })) {
+    while (this.hasSolidObjectAt({ x, y: 0 }, excludedId)) {
       x += 1;
     }
     return { x, y: 0 };
+  }
+
+  areAdjacent(first: GridObject, second: GridObject): boolean {
+    const overlapsHorizontally = first.position.x < second.position.x + second.width
+      && second.position.x < first.position.x + first.width;
+    const overlapsVertically = first.position.y < second.position.y + second.height
+      && second.position.y < first.position.y + first.height;
+    return (overlapsHorizontally && (first.position.y + first.height === second.position.y || second.position.y + second.height === first.position.y))
+      || (overlapsVertically && (first.position.x + first.width === second.position.x || second.position.x + second.width === first.position.x));
   }
 
   moveObject(id: string, direction: MoveType): Position | undefined {
@@ -45,6 +54,16 @@ export default class World {
 
     const position = this.getNextPosition(object.position, direction);
     if (!this.canOccupy(object, position, object.id)) {
+      return undefined;
+    }
+
+    object.moveTo(position);
+    return this.toWorldPosition(position);
+  }
+
+  moveObjectTo(id: string, position: Position): Position | undefined {
+    const object = this.objects.get(id);
+    if (!object || !this.canOccupy(object, position, object.id)) {
       return undefined;
     }
 

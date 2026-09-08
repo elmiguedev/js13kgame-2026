@@ -1,4 +1,5 @@
 import { Keys } from "../../lib/controllers/KeyboardController";
+import FloatingText from "../../lib/entities/FloatingText";
 import SpriteSheet from "../../lib/entities/SpriteSheet";
 import Scene from "../../lib/Scene";
 import GameController from "../controllers/GameController";
@@ -59,7 +60,7 @@ export default class GameScene extends Scene {
     for (const [id, player] of players) {
       const entity = this.playerEntities.get(id);
       if (entity) {
-        entity.updateState(player);
+        this.showDamage(entity, entity.updateState(player));
         if (id === localPlayerId) {
           this.camera.startFollow(entity);
         }
@@ -106,7 +107,7 @@ export default class GameScene extends Scene {
     for (const [id, enemy] of enemies) {
       const entity = this.enemyEntities.get(id);
       if (entity) {
-        entity.updateState(enemy);
+        this.showDamage(entity, entity.updateState(enemy));
       } else {
         const enemyEntity = this.entities.add(new EnemyEntity(this.spriteSheet, enemy, EnemyFactory.getAnimation(enemy.type)));
         this.enemyEntities.set(id, enemyEntity);
@@ -127,6 +128,18 @@ export default class GameScene extends Scene {
     this.fog.apply(localPlayer, this.playerEntities.values(), this.solidEntities.values());
     this.fog.apply(localPlayer, this.enemyEntities.values(), this.solidEntities.values());
     this.fog.apply(localPlayer, this.solidEntities.values(), this.solidEntities.values());
+  }
+
+  private showDamage(entity: PlayerEntity | EnemyEntity, damage: number): void {
+    if (!damage) {
+      return;
+    }
+
+    this.entities.add(new FloatingText(
+      { x: entity.position.x + entity.width / 2 - 3, y: entity.position.y - 3 },
+      `-${damage}`,
+      { color: "#ff4040", fontSize: 6, duration: 500, rise: 4, onComplete: (text) => this.entities.remove(text.id) },
+    ));
   }
 
   private movePlayer(direction: MoveType): void {

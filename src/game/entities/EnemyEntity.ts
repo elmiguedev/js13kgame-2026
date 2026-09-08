@@ -27,9 +27,11 @@ export default class EnemyEntity extends SpriteSheetSprite {
     this.anims.play(animationName);
   }
 
-  updateState(state: EnemyState): void {
+  updateState(state: EnemyState): number {
+    const damage = Math.max(0, this.hp - state.hp);
     this.position.x = state.position.x;
     this.position.y = state.position.y;
     this.hp = state.hp;
+    return damage;
   }
 }

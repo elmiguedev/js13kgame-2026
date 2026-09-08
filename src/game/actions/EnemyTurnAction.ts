@@ -1,3 +1,4 @@
+import Dice from "../../lib/common/Dice";
 import type { MoveType } from "../domain/MoveType";
 import Enemy from "../entities/Enemy";
 import Player from "../entities/Player";
@@ -15,6 +16,7 @@ export default class EnemyTurnAction implements Action<void, boolean> {
 
   execute(): boolean {
     const updates = [];
+    let changed = false;
     for (const enemyId of this.gameService.state.enemies.keys()) {
       const enemy = this.world.getObject(enemyId);
       if (!(enemy instanceof Enemy)) {
@@ -23,6 +25,10 @@ export default class EnemyTurnAction implements Action<void, boolean> {
 
       const player = this.getVisiblePlayer(enemy);
       if (!player) {
+        continue;
+      }
+      if (this.world.areAdjacent(enemy, player)) {
+        changed = this.attackPlayer(player) || changed;
         continue;
       }
       if (Math.random() > EnemyTurnAction.followChance) {
@@ -34,7 +40,28 @@ export default class EnemyTurnAction implements Action<void, boolean> {
         updates.push(enemy.toState(position));
       }
     }
-    return this.gameService.updateEnemies(updates);
+    return this.gameService.updateEnemies(updates) || changed;
+  }
+
+  private attackPlayer(player: Player): boolean {
+    const state = this.gameService.getPlayer(player.id);
+    if (!state) {
+      return false;
+    }
+
+    const hp = state.hp - Dice.throw(1, 2);
+    if (hp > 0) {
+      return this.gameService.updatePlayer({ ...state, hp });
+    }
+
+    if (!this.gameService.updatePlayer({ ...state, hp })) {
+      return false;
+    }
+    const position = this.world.moveObjectTo(player.id, this.world.findFreePosition(player.id));
+    if (!position) {
+      return true;
+    }
+    return this.gameService.updatePlayer({ ...state, hp: Player.maxHp, position });
   }
 
   private getVisiblePlayer(enemy: Enemy): Player | undefined {

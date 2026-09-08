@@ -1,4 +1,5 @@
 import type Position from "../../lib/common/Position";
+import Player from "../entities/Player";
 import GameService from "../services/GameService";
 import type Action from "./Action";
 
@@ -15,7 +16,7 @@ export default class AddPlayerAction implements Action<AddPlayerInput, boolean> 
       return false;
     }
 
-    const playerToAdd = { id, hp: 100, position, ready: false };
+    const playerToAdd = { id, hp: Player.maxHp, position, ready: false };
     return this.gameService.addPlayer(playerToAdd);
   }
 }

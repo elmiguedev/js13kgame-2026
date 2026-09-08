@@ -1,3 +1,4 @@
+import Dice from "../../lib/common/Dice";
 import Enemy from "../entities/Enemy";
 import Player from "../entities/Player";
 import World from "../entities/World";
@@ -5,8 +6,6 @@ import GameService from "../services/GameService";
 import type Action from "./Action";
 
 export default class AttackPlayerAction implements Action<string, boolean> {
-  private static readonly damage = 1;
-
   constructor(
     private readonly gameService: GameService,
     private readonly world: World,
@@ -23,9 +22,10 @@ export default class AttackPlayerAction implements Action<string, boolean> {
       return false;
     }
 
-    const hp = target.takeDamage(AttackPlayerAction.damage);
+    const hp = target.takeDamage(Dice.throw(1, 4));
     if (hp <= 0) {
-      return this.world.removeObject(target.id) && this.gameService.removeEnemy(target.id);
+      const updated = this.gameService.updateEnemy(target.id, target.toState(this.world.toWorldPosition(target.position)));
+      return updated && this.world.removeObject(target.id) && this.gameService.removeEnemy(target.id);
     }
 
     return this.gameService.updateEnemy(target.id, target.toState(this.world.toWorldPosition(target.position)));
