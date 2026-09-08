@@ -14,7 +14,8 @@ import GameService from "../services/GameService";
 import type { ObservableListener } from "../../lib/common/Observable";
 
 export default class GameServer {
-  private static readonly enemyCount = 20;
+  private static readonly moleCount = 20;
+  private static readonly beholderCount = 10;
   private readonly gameService = new GameService();
   private readonly world = new World();
   private readonly mazeBuilder = new MazeBuilder();
@@ -81,13 +82,11 @@ export default class GameServer {
 
   private createEnemies(floors: readonly Position[]): void {
     const positions = floors.filter((position) => position.x !== 0 || position.y !== 0);
-    const nearbyEnemy = positions.find((position) => position.x === 1 && position.y === 0);
-    const randomPositions = positions.filter((position) => position !== nearbyEnemy);
-    const enemyPositions = nearbyEnemy
-      ? [nearbyEnemy, ...this.getRandomPositions(randomPositions, GameServer.enemyCount - 1)]
-      : this.getRandomPositions(randomPositions, GameServer.enemyCount);
-    for (const position of enemyPositions) {
-      const enemy = EnemyFactory.createGenericMonster(position);
+    const enemyPositions = this.getRandomPositions(positions, GameServer.moleCount + GameServer.beholderCount);
+    for (const [index, position] of enemyPositions.entries()) {
+      const enemy = index < GameServer.moleCount
+        ? EnemyFactory.createMole(position)
+        : EnemyFactory.createBeholder(position);
       if (!this.world.addObject(enemy)) {
         continue;
       }

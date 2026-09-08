@@ -109,7 +109,7 @@ export default class GameScene extends Scene {
       if (entity) {
         entity.updateState(enemy);
       } else {
-        const enemyEntity = this.entities.add(new EnemyEntity(this.spriteSheet, enemy, EnemyFactory.genericMonsterAnimation));
+        const enemyEntity = this.entities.add(new EnemyEntity(this.spriteSheet, enemy, EnemyFactory.getAnimation(enemy.type)));
         this.enemyEntities.set(id, enemyEntity);
       }
     }

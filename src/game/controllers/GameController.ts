@@ -220,8 +220,9 @@ export default class GameController {
       return false;
     }
 
-    const enemy = value as { id?: unknown; hp?: unknown; visionRange?: unknown; position?: { x?: unknown; y?: unknown } };
+    const enemy = value as { id?: unknown; type?: unknown; hp?: unknown; visionRange?: unknown; position?: { x?: unknown; y?: unknown } };
     return typeof enemy.id === "string"
+      && (enemy.type === "beholder" || enemy.type === "mole")
       && typeof enemy.hp === "number"
       && Number.isFinite(enemy.hp)
       && typeof enemy.visionRange === "number"
