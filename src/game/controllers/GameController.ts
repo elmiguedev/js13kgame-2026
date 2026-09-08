@@ -58,6 +58,7 @@ export default class GameController {
     this.roomController.onStateReceived((state) => this.applyState(state));
     this.roomController.onPlayerReady((playerId) => this.gameServer?.setPlayerReady(playerId));
     this.roomController.onMoveReceived((input) => this.gameServer?.movePlayer(input));
+    this.roomController.onAttackReceived((playerId) => this.gameServer?.attackPlayer(playerId));
   }
 
   // methods
@@ -103,6 +104,17 @@ export default class GameController {
     }
 
     return this.roomController.sendMove({ id: playerId, direction });
+  }
+
+  public attackLocalPlayer(): boolean {
+    const playerId = this.localPlayerId;
+    if (!playerId) {
+      return false;
+    }
+
+    return this.roomController.isHost
+      ? this.gameServer?.attackPlayer(playerId) ?? false
+      : this.roomController.sendAttack();
   }
 
   public setLocalPlayerReady(): boolean {
@@ -208,10 +220,13 @@ export default class GameController {
       return false;
     }
 
-    const enemy = value as { id?: unknown; hp?: unknown; position?: { x?: unknown; y?: unknown } };
+    const enemy = value as { id?: unknown; hp?: unknown; visionRange?: unknown; position?: { x?: unknown; y?: unknown } };
     return typeof enemy.id === "string"
       && typeof enemy.hp === "number"
       && Number.isFinite(enemy.hp)
+      && typeof enemy.visionRange === "number"
+      && Number.isFinite(enemy.visionRange)
+      && enemy.visionRange >= 0
       && typeof enemy.position?.x === "number"
       && Number.isFinite(enemy.position.x)
       && typeof enemy.position?.y === "number"

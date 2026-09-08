@@ -24,6 +24,15 @@ export default class World {
     return this.objects.delete(id);
   }
 
+  getObject(id: string): GridObject | undefined {
+    return this.objects.get(id);
+  }
+
+  getAdjacentObject(id: string, direction: MoveType): GridObject | undefined {
+    const object = this.objects.get(id);
+    return object ? this.getObjectAt(this.getNextPosition(object.position, direction)) : undefined;
+  }
+
   findFreePosition(): Position {
     let x = 0;
     while (this.hasSolidObjectAt({ x, y: 0 })) {
@@ -52,12 +61,16 @@ export default class World {
   }
 
   private hasSolidObjectAt(position: Position): boolean {
+    return Boolean(this.getObjectAt(position, true));
+  }
+
+  private getObjectAt(position: Position, solidOnly = false): GridObject | undefined {
     for (const object of this.objects.values()) {
-      if (object.solid && object.position.x === position.x && object.position.y === position.y) {
-        return true;
+      if ((!solidOnly || object.solid) && object.position.x === position.x && object.position.y === position.y) {
+        return object;
       }
     }
-    return false;
+    return undefined;
   }
 
   private getNextPosition(position: Position, direction: MoveType): Position {

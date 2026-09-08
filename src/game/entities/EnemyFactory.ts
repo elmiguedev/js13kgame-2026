@@ -13,6 +13,6 @@ export default class EnemyFactory {
   };
 
   static createGenericMonster(position: Position): Enemy {
-    return new Enemy(`enemy-${this.nextId++}`, position);
+    return new Enemy(`enemy-${this.nextId++}`, position, 2, 4);
   }
 }

@@ -1,4 +1,5 @@
 import type { MoveType } from "../domain/MoveType";
+import Player from "../entities/Player";
 import World from "../entities/World";
 import GameService from "../services/GameService";
 import type Action from "./Action";
@@ -19,6 +20,12 @@ export default class MovePlayerAction implements Action<MovePlayerInput, boolean
     if (!player) {
       return false;
     }
+
+    const worldPlayer = this.world.getObject(id);
+    if (!(worldPlayer instanceof Player)) {
+      return false;
+    }
+    worldPlayer.setFacing(direction);
 
     const position = this.world.moveObject(id, direction);
     if (!position) {

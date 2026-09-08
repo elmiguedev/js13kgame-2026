@@ -135,6 +135,21 @@ export default class GameService {
     return true;
   }
 
+  updateEnemies(enemies: Iterable<EnemyState>): boolean {
+    let updated = false;
+    for (const enemy of enemies) {
+      if (this.enemies.has(enemy.id)) {
+        this.enemies.set(enemy.id, this.copyEnemy(enemy));
+        updated = true;
+      }
+    }
+
+    if (updated) {
+      this.emitStateChange();
+    }
+    return updated;
+  }
+
   removeEnemy(id: string): boolean {
     if (!this.enemies.delete(id)) {
       return false;

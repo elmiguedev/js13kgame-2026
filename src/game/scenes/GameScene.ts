@@ -51,6 +51,7 @@ export default class GameScene extends Scene {
     this.input.keyboard.onKeyPress(Keys.ARROW_DOWN, () => this.movePlayer("down"));
     this.input.keyboard.onKeyPress(Keys.ARROW_LEFT, () => this.movePlayer("left"));
     this.input.keyboard.onKeyPress(Keys.ARROW_RIGHT, () => this.movePlayer("right"));
+    this.input.keyboard.onKeyPress(Keys.SPACE, this.attackPlayer);
 
   }
 
@@ -132,4 +133,8 @@ export default class GameScene extends Scene {
   private movePlayer(direction: MoveType): void {
     this.gameController.moveLocalPlayer(direction);
   }
+
+  private readonly attackPlayer = (): void => {
+    this.gameController.attackLocalPlayer();
+  };
 }

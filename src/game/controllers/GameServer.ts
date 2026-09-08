@@ -1,5 +1,7 @@
 import type Position from "../../lib/common/Position";
 import AddPlayerAction from "../actions/AddPlayerAction";
+import AttackPlayerAction from "../actions/AttackPlayerAction";
+import EnemyTurnAction from "../actions/EnemyTurnAction";
 import MovePlayerAction, { type MovePlayerInput } from "../actions/MovePlayerAction";
 import SetPlayerReadyAction from "../actions/SetPlayerReadyAction";
 import EnemyFactory from "../entities/EnemyFactory";
@@ -12,11 +14,13 @@ import GameService from "../services/GameService";
 import type { ObservableListener } from "../../lib/common/Observable";
 
 export default class GameServer {
-  private static readonly enemyCount = 10;
+  private static readonly enemyCount = 20;
   private readonly gameService = new GameService();
   private readonly world = new World();
   private readonly mazeBuilder = new MazeBuilder();
   private readonly addPlayerAction = new AddPlayerAction(this.gameService);
+  private readonly attackPlayerAction = new AttackPlayerAction(this.gameService, this.world);
+  private readonly enemyTurnAction = new EnemyTurnAction(this.gameService, this.world);
   private readonly movePlayerAction = new MovePlayerAction(this.gameService, this.world);
   private readonly setPlayerReadyAction = new SetPlayerReadyAction(this.gameService);
 
@@ -44,7 +48,19 @@ export default class GameServer {
   }
 
   movePlayer(input: MovePlayerInput): boolean {
-    return this.movePlayerAction.execute(input);
+    const moved = this.movePlayerAction.execute(input);
+    if (moved) {
+      this.enemyTurnAction.execute();
+    }
+    return moved;
+  }
+
+  attackPlayer(id: string): boolean {
+    const attacked = this.attackPlayerAction.execute(id);
+    if (attacked) {
+      this.enemyTurnAction.execute();
+    }
+    return attacked;
   }
 
   setPlayerReady(id: string): boolean {
@@ -65,7 +81,12 @@ export default class GameServer {
 
   private createEnemies(floors: readonly Position[]): void {
     const positions = floors.filter((position) => position.x !== 0 || position.y !== 0);
-    for (const position of this.getRandomPositions(positions, GameServer.enemyCount)) {
+    const nearbyEnemy = positions.find((position) => position.x === 1 && position.y === 0);
+    const randomPositions = positions.filter((position) => position !== nearbyEnemy);
+    const enemyPositions = nearbyEnemy
+      ? [nearbyEnemy, ...this.getRandomPositions(randomPositions, GameServer.enemyCount - 1)]
+      : this.getRandomPositions(randomPositions, GameServer.enemyCount);
+    for (const position of enemyPositions) {
       const enemy = EnemyFactory.createGenericMonster(position);
       if (!this.world.addObject(enemy)) {
         continue;
