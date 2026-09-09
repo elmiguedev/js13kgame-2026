@@ -29,7 +29,20 @@ export default class World {
     return object ? Array.from(this.objects.values()).filter((target) => target.id !== id && this.areAdjacent(object, target)) : [];
   }
 
-  findFreePosition(excludedId?: string): Position {
+  getOverlappingObjects(id: string): GridObject[] {
+    const object = this.objects.get(id);
+    return object ? Array.from(this.objects.values()).filter((target) => target.id !== id && this.overlaps(object, target)) : [];
+  }
+
+  findFreePosition(excludedId?: string, positions?: Iterable<Position>): Position {
+    if (positions) {
+      for (const position of positions) {
+        if (!this.hasSolidObjectAt(position, excludedId)) {
+          return { ...position };
+        }
+      }
+    }
+
     let x = 0;
     while (this.hasSolidObjectAt({ x, y: 0 }, excludedId)) {
       x += 1;
@@ -44,6 +57,13 @@ export default class World {
       && second.position.y < first.position.y + first.height;
     return (overlapsHorizontally && (first.position.y + first.height === second.position.y || second.position.y + second.height === first.position.y))
       || (overlapsVertically && (first.position.x + first.width === second.position.x || second.position.x + second.width === first.position.x));
+  }
+
+  private overlaps(first: GridObject, second: GridObject): boolean {
+    return first.position.x < second.position.x + second.width
+      && second.position.x < first.position.x + first.width
+      && first.position.y < second.position.y + second.height
+      && second.position.y < first.position.y + first.height;
   }
 
   moveObject(id: string, direction: MoveType): Position | undefined {

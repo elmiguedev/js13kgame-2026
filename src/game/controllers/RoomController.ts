@@ -18,7 +18,7 @@ export default class RoomController {
   private readonly stateReceived = new Observable<string>();
   private readonly playerReady = new Observable<string>();
   private readonly moveReceived = new Observable<MovePlayerInput>();
-  private readonly attackReceived = new Observable<string>();
+  private readonly interactReceived = new Observable<string>();
   private roomCode: string | undefined;
   private playerType: RoomPlayerType | undefined;
   private clientId: string | undefined;
@@ -63,8 +63,8 @@ export default class RoomController {
     return this.moveReceived.subscribe(listener);
   }
 
-  onAttackReceived(listener: ObservableListener<string>): () => void {
-    return this.attackReceived.subscribe(listener);
+  onInteractReceived(listener: ObservableListener<string>): () => void {
+    return this.interactReceived.subscribe(listener);
   }
 
   sendState(state: string): boolean {
@@ -84,8 +84,8 @@ export default class RoomController {
     return this.socket.send(`move|${input.id}|${input.direction}`);
   }
 
-  sendAttack(): boolean {
-    return this.clientId ? this.socket.send(`attack|${this.clientId}`) : false;
+  sendInteract(): boolean {
+    return this.clientId ? this.socket.send(`interact|${this.clientId}`) : false;
   }
 
   get isHost(): boolean {
@@ -134,8 +134,8 @@ export default class RoomController {
       if (id && this.isMoveType(direction)) {
         this.moveReceived.emit({ id, direction });
       }
-    } else if (type === "attack" && value) {
-      this.attackReceived.emit(value);
+    } else if (type === "interact" && value) {
+      this.interactReceived.emit(value);
     }
   }
 

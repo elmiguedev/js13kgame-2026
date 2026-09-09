@@ -3,11 +3,15 @@ import FloatingText from "../../lib/entities/FloatingText";
 import SpriteSheet from "../../lib/entities/SpriteSheet";
 import Scene from "../../lib/Scene";
 import GameController from "../controllers/GameController";
+import type CollectibleState from "../domain/CollectibleState";
+import type DoorState from "../domain/DoorState";
 import type EnemyState from "../domain/EnemyState";
 import type { MoveType } from "../domain/MoveType";
 import type PlayerState from "../domain/PlayerState";
 import type SolidState from "../domain/SolidState";
 import EnemyFactory from "../entities/EnemyFactory";
+import CollectibleEntity from "../entities/CollectibleEntity";
+import DoorEntity from "../entities/DoorEntity";
 import FogOfWar from "../entities/FogOfWar";
 import EnemyEntity from "../entities/EnemyEntity";
 import PlayerEntity from "../entities/PlayerEntity";
@@ -20,6 +24,8 @@ export default class GameScene extends Scene {
   private readonly playerEntities = new Map<string, PlayerEntity>();
   private readonly enemyEntities = new Map<string, EnemyEntity>();
   private readonly solidEntities = new Map<string, SolidEntity>();
+  private readonly collectibleEntities = new Map<string, CollectibleEntity>();
+  private readonly doorEntities = new Map<string, DoorEntity>();
   private unsubscribeGameState: (() => void) | undefined;
 
   constructor() {
@@ -44,6 +50,8 @@ export default class GameScene extends Scene {
       this.syncSolidEntities(event.state.solids);
       this.syncPlayerEntities(event.state.players);
       this.syncEnemyEntities(event.state.enemies);
+      this.syncCollectibleEntities(event.state.collectibles);
+      this.syncDoorEntities(event.state.doors);
       this.updateFog();
     });
   }
@@ -53,7 +61,7 @@ export default class GameScene extends Scene {
     this.input.keyboard.onKeyPress(Keys.ARROW_DOWN, () => this.movePlayer("down"));
     this.input.keyboard.onKeyPress(Keys.ARROW_LEFT, () => this.movePlayer("left"));
     this.input.keyboard.onKeyPress(Keys.ARROW_RIGHT, () => this.movePlayer("right"));
-    this.input.keyboard.onKeyPress(Keys.SPACE, this.attackPlayer);
+    this.input.keyboard.onKeyPress(Keys.SPACE, this.interactPlayer);
 
   }
 
@@ -110,6 +118,35 @@ export default class GameScene extends Scene {
     }
   }
 
+  private syncCollectibleEntities(collectibles: ReadonlyMap<string, CollectibleState>): void {
+    for (const [id, collectible] of collectibles) {
+      const entity = this.collectibleEntities.get(id);
+      if (entity) {
+        entity.updateState(collectible);
+      } else {
+        this.collectibleEntities.set(id, this.entities.add(new CollectibleEntity(this.spriteSheet, collectible)));
+      }
+    }
+
+    for (const [id, entity] of this.collectibleEntities) {
+      if (!collectibles.has(id)) {
+        this.entities.remove(entity.id);
+        this.collectibleEntities.delete(id);
+      }
+    }
+  }
+
+  private syncDoorEntities(doors: ReadonlyMap<string, DoorState>): void {
+    for (const [id, door] of doors) {
+      const entity = this.doorEntities.get(id);
+      if (entity) {
+        entity.updateState(door);
+      } else {
+        this.doorEntities.set(id, this.entities.add(new DoorEntity(this.spriteSheet, door)));
+      }
+    }
+  }
+
   private syncEnemyEntities(enemies: ReadonlyMap<string, EnemyState>): void {
     for (const [id, enemy] of enemies) {
       const entity = this.enemyEntities.get(id);
@@ -161,7 +198,7 @@ export default class GameScene extends Scene {
     this.gameController.moveLocalPlayer(direction);
   }
 
-  private readonly attackPlayer = (): void => {
-    this.gameController.attackLocalPlayer();
+  private readonly interactPlayer = (): void => {
+    this.gameController.interactLocalPlayer();
   };
 }

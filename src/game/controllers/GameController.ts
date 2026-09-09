@@ -6,6 +6,9 @@ import type GameState from "../domain/GameState";
 import type { GameStateType } from "../domain/GameStateType";
 import type { MoveType } from "../domain/MoveType";
 import type EnemyState from "../domain/EnemyState";
+import type CollectibleState from "../domain/CollectibleState";
+import type DoorState from "../domain/DoorState";
+import { DOOR_GEM_COLORS, isGemColor } from "../domain/GemColor";
 import type PlayerState from "../domain/PlayerState";
 import type SolidState from "../domain/SolidState";
 import GameService from "../services/GameService";
@@ -58,7 +61,7 @@ export default class GameController {
     this.roomController.onStateReceived((state) => this.applyState(state));
     this.roomController.onPlayerReady((playerId) => this.gameServer?.setPlayerReady(playerId));
     this.roomController.onMoveReceived((input) => this.gameServer?.movePlayer(input));
-    this.roomController.onAttackReceived((playerId) => this.gameServer?.attackPlayer(playerId));
+    this.roomController.onInteractReceived((playerId) => this.gameServer?.interactPlayer(playerId));
   }
 
   // methods
@@ -72,6 +75,8 @@ export default class GameController {
         players: new Map(this.gameService.state.players),
         enemies: new Map(this.gameService.state.enemies),
         solids: new Map(this.gameService.state.solids),
+        collectibles: new Map(this.gameService.state.collectibles),
+        doors: new Map(this.gameService.state.doors),
       },
     });
     return unsubscribe;
@@ -106,15 +111,15 @@ export default class GameController {
     return this.roomController.sendMove({ id: playerId, direction });
   }
 
-  public attackLocalPlayer(): boolean {
+  public interactLocalPlayer(): boolean {
     const playerId = this.localPlayerId;
     if (!playerId) {
       return false;
     }
 
     return this.roomController.isHost
-      ? this.gameServer?.attackPlayer(playerId) ?? false
-      : this.roomController.sendAttack();
+      ? this.gameServer?.interactPlayer(playerId) ?? false
+      : this.roomController.sendInteract();
   }
 
   public setLocalPlayerReady(): boolean {
@@ -136,6 +141,8 @@ export default class GameController {
       players: Array.from(state.players.values()),
       enemies: Array.from(state.enemies.values()),
       solids: Array.from(state.solids.values()),
+      collectibles: Array.from(state.collectibles.values()),
+      doors: Array.from(state.doors.values()),
     });
   }
 
@@ -162,25 +169,47 @@ export default class GameController {
       for (const solid of value.solids) {
         solids.set(solid.id, solid);
       }
-      this.gameService.setState({ status: value.status, players, enemies, solids });
+      const collectibles = new Map<string, CollectibleState>();
+      for (const collectible of value.collectibles) {
+        collectibles.set(collectible.id, collectible);
+      }
+      const doors = new Map<string, DoorState>();
+      for (const door of value.doors) {
+        doors.set(door.id, door);
+      }
+      this.gameService.setState({ status: value.status, players, enemies, solids, collectibles, doors });
     } catch {
       // Ignore malformed state messages from the relay.
     }
   }
 
-  private isSerializedState(value: unknown): value is { status: GameStateType; players: PlayerState[]; enemies: EnemyState[]; solids: SolidState[] } {
+  private isSerializedState(value: unknown): value is { status: GameStateType; players: PlayerState[]; enemies: EnemyState[]; solids: SolidState[]; collectibles: CollectibleState[]; doors: DoorState[] } {
     if (!value || typeof value !== "object") {
       return false;
     }
 
-    const state = value as { status?: unknown; players?: unknown; enemies?: unknown; solids?: unknown };
-    return (state.status === "lobby" || state.status === "game")
+    const state = value as { status?: unknown; players?: unknown; enemies?: unknown; solids?: unknown; collectibles?: unknown; doors?: unknown };
+    const valid = (state.status === "lobby" || state.status === "game")
       && Array.isArray(state.players)
       && state.players.every((player) => this.isPlayerState(player))
       && Array.isArray(state.enemies)
       && state.enemies.every((enemy) => this.isEnemyState(enemy))
       && Array.isArray(state.solids)
-      && state.solids.every((solid) => this.isSolidState(solid));
+      && state.solids.every((solid) => this.isSolidState(solid))
+      && Array.isArray(state.collectibles)
+      && state.collectibles.every((collectible) => this.isCollectibleState(collectible))
+      && Array.isArray(state.doors)
+      && state.doors.every((door) => this.isDoorState(door));
+    if (!valid) {
+      return false;
+    }
+
+    const gems = [
+      ...(state.players as PlayerState[]).flatMap((player) => player.gems),
+      ...(state.collectibles as CollectibleState[]).map((collectible) => collectible.color),
+      ...(state.doors as DoorState[]).flatMap((door) => door.placedGems),
+    ];
+    return new Set(gems).size === gems.length;
   }
 
   private isPlayerState(value: unknown): value is PlayerState {
@@ -188,11 +217,13 @@ export default class GameController {
       return false;
     }
 
-    const player = value as { id?: unknown; hp?: unknown; ready?: unknown; position?: { x?: unknown; y?: unknown } };
+    const player = value as { id?: unknown; hp?: unknown; ready?: unknown; gems?: unknown; position?: { x?: unknown; y?: unknown } };
     return typeof player.id === "string"
       && typeof player.hp === "number"
       && Number.isFinite(player.hp)
       && typeof player.ready === "boolean"
+      && Array.isArray(player.gems)
+      && player.gems.every(isGemColor)
       && typeof player.position?.x === "number"
       && Number.isFinite(player.position.x)
       && typeof player.position?.y === "number"
@@ -238,5 +269,42 @@ export default class GameController {
       && Number.isFinite(enemy.position.x)
       && typeof enemy.position?.y === "number"
       && Number.isFinite(enemy.position.y);
+  }
+
+  private isCollectibleState(value: unknown): value is CollectibleState {
+    if (!value || typeof value !== "object") {
+      return false;
+    }
+
+    const collectible = value as { id?: unknown; color?: unknown; position?: { x?: unknown; y?: unknown } };
+    return typeof collectible.id === "string"
+      && isGemColor(collectible.color)
+      && typeof collectible.position?.x === "number"
+      && Number.isFinite(collectible.position.x)
+      && typeof collectible.position?.y === "number"
+      && Number.isFinite(collectible.position.y);
+  }
+
+  private isDoorState(value: unknown): value is DoorState {
+    if (!value || typeof value !== "object") {
+      return false;
+    }
+
+    const door = value as { id?: unknown; open?: unknown; placedGems?: unknown; width?: unknown; height?: unknown; position?: { x?: unknown; y?: unknown } };
+    return typeof door.id === "string"
+      && typeof door.open === "boolean"
+      && Array.isArray(door.placedGems)
+      && door.placedGems.every((color) => DOOR_GEM_COLORS.includes(color))
+      && door.open === (door.placedGems.length === DOOR_GEM_COLORS.length)
+      && typeof door.width === "number"
+      && Number.isInteger(door.width)
+      && door.width > 0
+      && typeof door.height === "number"
+      && Number.isInteger(door.height)
+      && door.height > 0
+      && typeof door.position?.x === "number"
+      && Number.isFinite(door.position.x)
+      && typeof door.position?.y === "number"
+      && Number.isFinite(door.position.y);
   }
 }

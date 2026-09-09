@@ -1,4 +1,5 @@
 import Dice from "../../lib/common/Dice";
+import Collectible from "../entities/Collectible";
 import Enemy from "../entities/Enemy";
 import Player from "../entities/Player";
 import World from "../entities/World";
@@ -25,7 +26,12 @@ export default class AttackPlayerAction implements Action<string, boolean> {
     const hp = target.takeDamage(Dice.throw(1, 4));
     if (hp <= 0) {
       const updated = this.gameService.updateEnemy(target.id, target.toState(this.world.toWorldPosition(target.position)));
-      return updated && this.world.removeObject(target.id) && this.gameService.removeEnemy(target.id);
+      const removed = updated && this.world.removeObject(target.id) && this.gameService.removeEnemy(target.id);
+      if (removed && target.type === "boss") {
+        const gem = new Collectible("gem-violet", target.position, "violet");
+        return this.world.addObject(gem) && this.gameService.addCollectible(gem.toState(this.world.toWorldPosition(gem.position)));
+      }
+      return removed;
     }
 
     return this.gameService.updateEnemy(target.id, target.toState(this.world.toWorldPosition(target.position)));

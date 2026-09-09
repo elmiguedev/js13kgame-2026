@@ -1,124 +1,114 @@
 import type Position from "../../lib/common/Position";
+import type { GemColor } from "../domain/GemColor";
+
+interface GemSpawn {
+  color: Exclude<GemColor, "violet">;
+  position: Position;
+}
 
 export interface DungeonLayout {
   walls: readonly Position[];
   floors: readonly Position[];
+  gems: readonly GemSpawn[];
+  enemyPositions: readonly Position[];
+  playerSpawnFloors: readonly Position[];
+  bossPosition: Position;
+  door: { position: Position; width: number; height: number };
 }
 
 export default class MazeBuilder {
-  private static readonly radius = 150;
-  private static readonly mazeRoomCount = 12;
   private static readonly roomSize = 5;
-  private static readonly corridorSize = 2;
-  private static readonly start = -42;
+  private static readonly roomStep = 7;
 
   build(): DungeonLayout {
-    const walls = this.createWalls();
-    const visited = new Set<string>();
-    const maxRoomPosition = MazeBuilder.getMaxRoomPosition();
-    const carve = (position: Position): void => {
-      visited.add(this.getPositionKey(position));
-      for (const direction of this.getRandomDirections()) {
-        const next = { x: position.x + direction.x * MazeBuilder.getRoomStep(), y: position.y + direction.y * MazeBuilder.getRoomStep() };
-        if (next.x < MazeBuilder.start || next.x > maxRoomPosition || next.y < MazeBuilder.start || next.y > maxRoomPosition || visited.has(this.getPositionKey(next))) {
-          continue;
-        }
-
-        this.carveCorridor(walls, position, next);
-        carve(next);
-      }
-    };
-
-    for (let y = MazeBuilder.start; y <= maxRoomPosition; y += MazeBuilder.getRoomStep()) {
-      for (let x = MazeBuilder.start; x <= maxRoomPosition; x += MazeBuilder.getRoomStep()) {
-        this.carveRoom(walls, { x, y });
-      }
+    const playerRoom = { x: 0, y: -7 };
+    const bossRoom = { x: 0, y: 0 };
+    const gemRooms = [
+      { color: "red", position: { x: -7, y: -14 } },
+      { color: "orange", position: { x: 0, y: -14 } },
+      { color: "yellow", position: { x: 7, y: -14 } },
+      { color: "green", position: { x: -7, y: -7 } },
+      { color: "blue", position: { x: 7, y: -7 } },
+      { color: "indigo", position: { x: -7, y: 0 } },
+    ] as const;
+    const floors = new Map<string, Position>();
+    for (const room of [playerRoom, bossRoom, ...gemRooms.map((room) => room.position)]) {
+      this.carveRoom(floors, room);
     }
-    carve({ x: 0, y: 0 });
-    return this.createLayout(walls);
+    for (const [from, to] of [
+      [playerRoom, bossRoom],
+      [playerRoom, gemRooms[1]!.position],
+      [playerRoom, gemRooms[3]!.position],
+      [playerRoom, gemRooms[4]!.position],
+      [gemRooms[3]!.position, gemRooms[0]!.position],
+      [gemRooms[1]!.position, gemRooms[2]!.position],
+      [gemRooms[3]!.position, gemRooms[5]!.position],
+    ] as const) {
+      this.carveCorridor(floors, from, to);
+    }
+
+    return {
+      walls: this.createWalls(floors),
+      floors: Array.from(floors.values()),
+      gems: gemRooms.map(({ color, position }) => ({ color, position: { x: position.x + 3, y: position.y + 3 } })),
+      enemyPositions: gemRooms.map(({ position }) => ({ x: position.x + 1, y: position.y + 1 })),
+      playerSpawnFloors: [
+        { x: 2, y: -5 },
+        { x: 1, y: -5 },
+        { x: 3, y: -5 },
+        { x: 2, y: -6 },
+        { x: 2, y: -4 },
+      ],
+      bossPosition: { x: 1, y: 1 },
+      door: { position: { x: 1, y: -1 }, width: 2, height: 1 },
+    };
   }
 
-  private createWalls(): Map<string, Position> {
-    const walls = new Map<string, Position>();
-    const min = MazeBuilder.start - 1;
-    const max = MazeBuilder.getMaxRoomPosition() + MazeBuilder.roomSize;
-    for (let y = min; y <= max; y += 1) {
-      for (let x = min; x <= max; x += 1) {
-        walls.set(this.getPositionKey({ x, y }), { x, y });
+  private carveRoom(floors: Map<string, Position>, position: Position): void {
+    for (let y = position.y; y < position.y + MazeBuilder.roomSize; y += 1) {
+      for (let x = position.x; x < position.x + MazeBuilder.roomSize; x += 1) {
+        this.addFloor(floors, { x, y });
+      }
+    }
+  }
+
+  private carveCorridor(floors: Map<string, Position>, from: Position, to: Position): void {
+    if (from.x !== to.x) {
+      const x = Math.min(from.x, to.x) + MazeBuilder.roomSize;
+      for (let y = from.y + 1; y < from.y + 3; y += 1) {
+        for (let corridorX = x; corridorX < x + 2; corridorX += 1) {
+          this.addFloor(floors, { x: corridorX, y });
+        }
+      }
+      return;
+    }
+
+    const y = Math.min(from.y, to.y) + MazeBuilder.roomSize;
+    for (let x = from.x + 1; x < from.x + 3; x += 1) {
+      for (let corridorY = y; corridorY < y + 2; corridorY += 1) {
+        this.addFloor(floors, { x, y: corridorY });
+      }
+    }
+  }
+
+  private createWalls(floors: ReadonlyMap<string, Position>): Position[] {
+    const walls: Position[] = [];
+    for (let y = -15; y <= 5; y += 1) {
+      for (let x = -8; x <= 12; x += 1) {
+        const position = { x, y };
+        if (!floors.has(this.getPositionKey(position))) {
+          walls.push(position);
+        }
       }
     }
     return walls;
   }
 
-  private carveRoom(walls: Map<string, Position>, position: Position): void {
-    for (let y = position.y; y < position.y + MazeBuilder.roomSize; y += 1) {
-      for (let x = position.x; x < position.x + MazeBuilder.roomSize; x += 1) {
-        walls.delete(this.getPositionKey({ x, y }));
-      }
-    }
-  }
-
-  private carveCorridor(walls: Map<string, Position>, from: Position, to: Position): void {
-    const corridorOffset = Math.floor((MazeBuilder.roomSize - MazeBuilder.corridorSize) / 2);
-    if (from.x !== to.x) {
-      const x = Math.min(from.x, to.x) + MazeBuilder.roomSize;
-      for (let y = from.y + corridorOffset; y < from.y + corridorOffset + MazeBuilder.corridorSize; y += 1) {
-        for (let corridorX = x; corridorX < x + MazeBuilder.corridorSize; corridorX += 1) {
-          walls.delete(this.getPositionKey({ x: corridorX, y }));
-        }
-      }
-    } else {
-      const y = Math.min(from.y, to.y) + MazeBuilder.roomSize;
-      for (let x = from.x + corridorOffset; x < from.x + corridorOffset + MazeBuilder.corridorSize; x += 1) {
-        for (let corridorY = y; corridorY < y + MazeBuilder.corridorSize; corridorY += 1) {
-          walls.delete(this.getPositionKey({ x, y: corridorY }));
-        }
-      }
-    }
-  }
-
-  private createLayout(walls: ReadonlyMap<string, Position>): DungeonLayout {
-    const min = MazeBuilder.start - 1;
-    const max = MazeBuilder.getMaxRoomPosition() + MazeBuilder.roomSize;
-    const floors: Position[] = [];
-    for (let y = min; y <= max; y += 1) {
-      for (let x = min; x <= max; x += 1) {
-        const position = { x, y };
-        if (!walls.has(this.getPositionKey(position))) {
-          floors.push(position);
-        }
-      }
-    }
-    const withinRadius = (position: Position): boolean => position.x * position.x + position.y * position.y <= MazeBuilder.radius * MazeBuilder.radius;
-    return {
-      walls: Array.from(walls.values()).filter(withinRadius),
-      floors: floors.filter(withinRadius),
-    };
-  }
-
-  private getRandomDirections(): Position[] {
-    const directions = [{ x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 1, y: 0 }];
-    return this.shuffle(directions);
-  }
-
-  private shuffle<T>(values: T[]): T[] {
-    const shuffled = [...values];
-    for (let index = shuffled.length - 1; index > 0; index -= 1) {
-      const swapIndex = Math.floor(Math.random() * (index + 1));
-      [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex]!, shuffled[index]!];
-    }
-    return shuffled;
+  private addFloor(floors: Map<string, Position>, position: Position): void {
+    floors.set(this.getPositionKey(position), position);
   }
 
   private getPositionKey(position: Position): string {
     return `${position.x},${position.y}`;
-  }
-
-  private static getRoomStep(): number {
-    return this.roomSize + this.corridorSize;
-  }
-
-  private static getMaxRoomPosition(): number {
-    return this.start + (this.mazeRoomCount - 1) * this.getRoomStep();
   }
 }

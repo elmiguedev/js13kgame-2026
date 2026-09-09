@@ -16,7 +16,7 @@ export default class AddPlayerAction implements Action<AddPlayerInput, boolean> 
       return false;
     }
 
-    const playerToAdd = { id, hp: Player.maxHp, position, ready: false };
+    const playerToAdd = { id, hp: Player.maxHp, position, ready: false, gems: [] };
     return this.gameService.addPlayer(playerToAdd);
   }
 }

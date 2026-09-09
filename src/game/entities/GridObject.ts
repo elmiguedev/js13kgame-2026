@@ -10,7 +10,7 @@ export interface GridObjectConfig {
 
 export default class GridObject {
   readonly id: string;
-  readonly solid: boolean;
+  solid: boolean;
   readonly position: Position;
   readonly width: number;
   readonly height: number;
