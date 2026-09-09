@@ -13,6 +13,7 @@ import EnemyFactory from "../entities/EnemyFactory";
 import CollectibleEntity from "../entities/CollectibleEntity";
 import DoorEntity from "../entities/DoorEntity";
 import FogOfWar from "../entities/FogOfWar";
+import GemHudEntity from "../entities/GemHudEntity";
 import EnemyEntity from "../entities/EnemyEntity";
 import PlayerEntity from "../entities/PlayerEntity";
 import SolidEntity from "../entities/SolidEntity";
@@ -26,6 +27,8 @@ export default class GameScene extends Scene {
   private readonly solidEntities = new Map<string, SolidEntity>();
   private readonly collectibleEntities = new Map<string, CollectibleEntity>();
   private readonly doorEntities = new Map<string, DoorEntity>();
+  private readonly gemHud = new GemHudEntity(this.spriteSheet);
+  private gemHudInitialized = false;
   private unsubscribeGameState: (() => void) | undefined;
 
   constructor() {
@@ -37,6 +40,7 @@ export default class GameScene extends Scene {
     this.game.sound.startDungeonLoop();
     this.createKeys();
     this.createEvents();
+    this.createHud();
   }
 
   override shutdown(): void {
@@ -54,6 +58,10 @@ export default class GameScene extends Scene {
       this.syncDoorEntities(event.state.doors);
       this.updateFog();
     });
+  }
+
+  private createHud(): void {
+    this.entities.add(this.gemHud);
   }
 
   private createKeys(): void {
@@ -96,6 +104,15 @@ export default class GameScene extends Scene {
           this.camera.stopFollow();
         }
       }
+    }
+
+    const localPlayer = localPlayerId ? players.get(localPlayerId) : undefined;
+    if (localPlayer) {
+      const gainedGem = this.gemHud.updateGems(localPlayer.gems);
+      if (this.gemHudInitialized && gainedGem) {
+        this.game.sound.collectGem();
+      }
+      this.gemHudInitialized = true;
     }
   }
 
@@ -140,7 +157,9 @@ export default class GameScene extends Scene {
     for (const [id, door] of doors) {
       const entity = this.doorEntities.get(id);
       if (entity) {
-        entity.updateState(door);
+        if (entity.updateState(door)) {
+          this.game.sound.placeGem();
+        }
       } else {
         this.doorEntities.set(id, this.entities.add(new DoorEntity(this.spriteSheet, door)));
       }

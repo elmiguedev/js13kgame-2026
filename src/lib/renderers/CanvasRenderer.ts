@@ -26,6 +26,13 @@ export default class CanvasRenderer implements Renderer {
   }
 
   render(object: GameObject): void {
+    if (object.fixedToScreen) {
+      this.context.save();
+      this.context.setTransform(1, 0, 0, 1, 0, 0);
+      object.render(this.context);
+      this.context.restore();
+      return;
+    }
     object.render(this.context);
   }
 

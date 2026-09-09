@@ -28,6 +28,14 @@ export default class SoundManager {
     this.play(180, 0.2, "sawtooth", 0.06, 45);
   }
 
+  placeGem(): void {
+    this.play(440, 0.12, "sine", 0.05, 660);
+  }
+
+  collectGem(): void {
+    this.play(660, 0.08, "triangle", 0.04, 880);
+  }
+
   startDungeonLoop(): void {
     if (!this.context || this.musicTimer !== undefined) {
       return;

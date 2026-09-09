@@ -11,6 +11,7 @@ export interface ObjectConfig {
   y?: number;
   hitArea?: Size;
   onClick?: () => void;
+  fixedToScreen?: boolean;
 }
 
 let nextObjectId = 0;
@@ -19,13 +20,15 @@ export default class Object {
   readonly id: string;
   readonly position: Position;
   readonly hitArea: Size | undefined;
+  readonly fixedToScreen: boolean;
   onClick: (() => void) | undefined;
 
-  constructor({ id, x, y, hitArea, onClick }: ObjectConfig = {}) {
+  constructor({ id, x, y, hitArea, onClick, fixedToScreen = false }: ObjectConfig = {}) {
     this.id = id ?? `object-${nextObjectId++}`;
     this.position = { x: x ?? 0, y: y ?? 0 };
     this.hitArea = hitArea;
     this.onClick = onClick;
+    this.fixedToScreen = fixedToScreen;
   }
 
   update(_time: number, _delta: number): void { }
