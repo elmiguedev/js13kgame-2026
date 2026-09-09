@@ -36,6 +36,11 @@ export default class SoundManager {
     this.play(660, 0.08, "triangle", 0.04, 880);
   }
 
+  openDoor(): void {
+    this.play(260, 0.5, "sine", 0.06, 520);
+    this.play(390, 0.7, "triangle", 0.04, 780);
+  }
+
   startDungeonLoop(): void {
     if (!this.context || this.musicTimer !== undefined) {
       return;

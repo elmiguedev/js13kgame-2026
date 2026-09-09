@@ -9,8 +9,8 @@ export default class GemHudEntity extends GameObject {
     super({ id: "gem-hud", x: 4, y: 4, fixedToScreen: true });
   }
 
-  updateGems(gems: readonly GemColor[]): boolean {
-    const gainedGem = gems.length > this.gems.length;
+  updateGems(gems: readonly GemColor[]): GemColor | undefined {
+    const gainedGem = gems.find((gem) => !this.gems.includes(gem));
     this.gems = gems;
     return gainedGem;
   }

@@ -1,23 +1,18 @@
 import GameObject from "../../lib/Object";
 import SpriteSheet from "../../lib/entities/SpriteSheet";
 import type DoorState from "../domain/DoorState";
-import type { GemColor } from "../domain/GemColor";
+import { GEM_LIGHT_COLORS, type GemColor } from "../domain/GemColor";
 
-const gemColors: Record<GemColor, string> = {
-  red: "#ff4040",
-  orange: "#ff8a30",
-  yellow: "#fff040",
-  green: "#40e060",
-  blue: "#4080ff",
-  indigo: "#8040d0",
-  violet: "#d060ff",
-};
+export interface DoorUpdate {
+  placedGem: boolean;
+  opened: boolean;
+}
 
 export default class DoorEntity extends GameObject {
   visible = true;
   alpha = 1;
-  private readonly width: number;
-  private readonly height: number;
+  readonly width: number;
+  readonly height: number;
   private open: boolean;
   private placedGems: readonly GemColor[];
 
@@ -29,13 +24,14 @@ export default class DoorEntity extends GameObject {
     this.placedGems = state.placedGems;
   }
 
-  updateState(state: DoorState): boolean {
+  updateState(state: DoorState): DoorUpdate {
     const placedGem = state.placedGems.length > this.placedGems.length;
+    const opened = state.open && !this.open;
     this.position.x = state.position.x;
     this.position.y = state.position.y;
     this.open = state.open;
     this.placedGems = state.placedGems;
-    return placedGem;
+    return { placedGem, opened };
   }
 
   override render(context: CanvasRenderingContext2D): void {
@@ -53,7 +49,7 @@ export default class DoorEntity extends GameObject {
       }
     }
     for (const [index, gem] of this.placedGems.entries()) {
-      context.fillStyle = gemColors[gem];
+      context.fillStyle = GEM_LIGHT_COLORS[gem];
       context.fillRect(Math.round(this.position.x + 3 + (index % this.width) * 8), Math.round(this.position.y - 3 - Math.floor(index / this.width) * 3), 2, 2);
     }
     context.restore();

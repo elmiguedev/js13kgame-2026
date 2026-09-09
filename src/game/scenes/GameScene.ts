@@ -14,6 +14,8 @@ import CollectibleEntity from "../entities/CollectibleEntity";
 import DoorEntity from "../entities/DoorEntity";
 import FogOfWar from "../entities/FogOfWar";
 import GemHudEntity from "../entities/GemHudEntity";
+import LightBurstEntity from "../entities/LightBurstEntity";
+import { GEM_COLORS, GEM_LIGHT_COLORS } from "../domain/GemColor";
 import EnemyEntity from "../entities/EnemyEntity";
 import PlayerEntity from "../entities/PlayerEntity";
 import SolidEntity from "../entities/SolidEntity";
@@ -111,6 +113,10 @@ export default class GameScene extends Scene {
       const gainedGem = this.gemHud.updateGems(localPlayer.gems);
       if (this.gemHudInitialized && gainedGem) {
         this.game.sound.collectGem();
+        const entity = this.playerEntities.get(localPlayerId!);
+        if (entity) {
+          this.showGemLight(entity, gainedGem);
+        }
       }
       this.gemHudInitialized = true;
     }
@@ -157,7 +163,11 @@ export default class GameScene extends Scene {
     for (const [id, door] of doors) {
       const entity = this.doorEntities.get(id);
       if (entity) {
-        if (entity.updateState(door)) {
+        const { placedGem, opened } = entity.updateState(door);
+        if (opened) {
+          this.game.sound.openDoor();
+          this.showDoorLight(entity);
+        } else if (placedGem) {
           this.game.sound.placeGem();
         }
       } else {
@@ -210,6 +220,24 @@ export default class GameScene extends Scene {
       { x: entity.position.x + entity.width / 2 - 3, y: entity.position.y - 3 },
       `-${damage}`,
       { color: "#ff4040", fontSize: 6, duration: 500, rise: 4, onComplete: (text) => this.entities.remove(text.id) },
+    ));
+  }
+
+  private showGemLight(entity: PlayerEntity, gem: keyof typeof GEM_LIGHT_COLORS): void {
+    this.entities.add(new LightBurstEntity(
+      { x: entity.position.x + entity.width / 2, y: entity.position.y + entity.height / 2 },
+      [GEM_LIGHT_COLORS[gem]],
+      1000,
+      (light) => this.entities.remove(light.id),
+    ));
+  }
+
+  private showDoorLight(door: DoorEntity): void {
+    this.entities.add(new LightBurstEntity(
+      { x: door.position.x + door.width * 4, y: door.position.y + door.height * 4 },
+      GEM_COLORS.map((gem) => GEM_LIGHT_COLORS[gem]),
+      2000,
+      (light) => this.entities.remove(light.id),
     ));
   }
 
