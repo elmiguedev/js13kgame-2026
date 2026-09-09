@@ -17,7 +17,7 @@ export default class AttackPlayerAction implements Action<string, boolean> {
       return false;
     }
 
-    const target = this.world.getAdjacentObject(playerId, player.direction);
+    const target = this.world.getAdjacentObjects(playerId).find((object) => object instanceof Enemy);
     if (!(target instanceof Enemy)) {
       return false;
     }

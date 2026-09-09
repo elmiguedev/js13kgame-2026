@@ -53,6 +53,7 @@ export default class LobbyScene extends Scene {
   }
 
   private readonly setLocalPlayerReady = (): void => {
+    this.game.sound.unlock();
     this.gameController.setLocalPlayerReady();
   };
 

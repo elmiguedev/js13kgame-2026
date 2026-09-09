@@ -24,9 +24,9 @@ export default class World {
     return this.objects.get(id);
   }
 
-  getAdjacentObject(id: string, direction: MoveType): GridObject | undefined {
+  getAdjacentObjects(id: string): GridObject[] {
     const object = this.objects.get(id);
-    return object ? this.getObjectAt(this.getNextPosition(object.position, direction)) : undefined;
+    return object ? Array.from(this.objects.values()).filter((target) => target.id !== id && this.areAdjacent(object, target)) : [];
   }
 
   findFreePosition(excludedId?: string): Position {

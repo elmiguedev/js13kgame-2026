@@ -28,11 +28,13 @@ export default class GameScene extends Scene {
 
   override create(): void {
     this.camera.setZoom(2);
+    this.game.sound.startDungeonLoop();
     this.createKeys();
     this.createEvents();
   }
 
   override shutdown(): void {
+    this.game.sound.stopDungeonLoop();
     this.unsubscribeGameState?.();
     this.unsubscribeGameState = undefined;
   }
@@ -60,7 +62,12 @@ export default class GameScene extends Scene {
     for (const [id, player] of players) {
       const entity = this.playerEntities.get(id);
       if (entity) {
-        this.showDamage(entity, entity.updateState(player));
+        const moved = entity.position.x !== player.position.x || entity.position.y !== player.position.y;
+        const previousHp = entity.hp;
+        this.showDamage(entity, entity.updateState(player), false, player.hp <= 0);
+        if (moved && id === localPlayerId && player.hp <= previousHp) {
+          this.game.sound.move();
+        }
         if (id === localPlayerId) {
           this.camera.startFollow(entity);
         }
@@ -107,7 +114,7 @@ export default class GameScene extends Scene {
     for (const [id, enemy] of enemies) {
       const entity = this.enemyEntities.get(id);
       if (entity) {
-        this.showDamage(entity, entity.updateState(enemy));
+        this.showDamage(entity, entity.updateState(enemy), true, enemy.hp <= 0);
       } else {
         const enemyEntity = this.entities.add(new EnemyEntity(this.spriteSheet, enemy, EnemyFactory.getAnimation(enemy.type)));
         this.enemyEntities.set(id, enemyEntity);
@@ -130,11 +137,19 @@ export default class GameScene extends Scene {
     this.fog.apply(localPlayer, this.solidEntities.values(), this.solidEntities.values());
   }
 
-  private showDamage(entity: PlayerEntity | EnemyEntity, damage: number): void {
+  private showDamage(entity: PlayerEntity | EnemyEntity, damage: number, isEnemy: boolean, dead: boolean): void {
     if (!damage) {
       return;
     }
 
+    if (isEnemy) {
+      this.game.sound.hit();
+    } else {
+      this.game.sound.damage();
+    }
+    if (dead) {
+      this.game.sound.death();
+    }
     this.entities.add(new FloatingText(
       { x: entity.position.x + entity.width / 2 - 3, y: entity.position.y - 3 },
       `-${damage}`,

@@ -33,6 +33,7 @@ export default class StartScene extends Scene {
   }
 
   private readonly hostRoom = (): void => {
+    this.game.sound.unlock();
     this.gameController.hostRoom();
   };
 
@@ -44,6 +45,7 @@ export default class StartScene extends Scene {
       return;
     }
 
+    this.game.sound.unlock();
     this.gameController.joinRoom(roomCode, "GUEST");
   };
 

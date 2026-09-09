@@ -1,4 +1,5 @@
 import SceneController, { type SceneConstructor } from "./controllers/SceneController";
+import SoundManager from "./controllers/SoundManager";
 import CanvasRenderer from "./renderers/CanvasRenderer";
 
 export interface GameConfig {
@@ -18,6 +19,7 @@ export default class Game {
   readonly renderer: CanvasRenderer;
   readonly zoom: number;
   readonly scene: SceneController;
+  readonly sound = new SoundManager();
 
   constructor({ canvas, parent = document.body, resolution, scenes, zoom = 1, pixelArt = true }: GameConfig) {
     if (!Number.isFinite(zoom) || zoom <= 0) {
@@ -43,6 +45,7 @@ export default class Game {
 
   destroy(): void {
     this.scene.destroy();
+    this.sound.destroy();
     this.renderer.destroy();
     this.canvas.remove();
   }
