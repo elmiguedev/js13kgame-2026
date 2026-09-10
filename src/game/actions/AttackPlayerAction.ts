@@ -27,8 +27,8 @@ export default class AttackPlayerAction implements Action<string, boolean> {
     if (hp <= 0) {
       const updated = this.gameService.updateEnemy(target.id, target.toState(this.world.toWorldPosition(target.position)));
       const removed = updated && this.world.removeObject(target.id) && this.gameService.removeEnemy(target.id);
-      if (removed && target.type === "boss") {
-        const gem = new Collectible("gem-violet", target.position, "violet");
+      if (removed && target.loot) {
+        const gem = new Collectible(`gem-${target.loot}`, target.position, target.loot);
         return this.world.addObject(gem) && this.gameService.addCollectible(gem.toState(this.world.toWorldPosition(gem.position)));
       }
       return removed;

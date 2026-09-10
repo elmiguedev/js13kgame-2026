@@ -19,6 +19,7 @@ import { GEM_COLORS, GEM_LIGHT_COLORS } from "../domain/GemColor";
 import EnemyEntity from "../entities/EnemyEntity";
 import PlayerEntity from "../entities/PlayerEntity";
 import SolidEntity from "../entities/SolidEntity";
+import TerrainEntity from "../entities/TerrainEntity";
 
 export default class GameScene extends Scene {
   private readonly spriteSheet = new SpriteSheet("./spritesheet.png", 8, 8, 8, 8);
@@ -29,6 +30,7 @@ export default class GameScene extends Scene {
   private readonly solidEntities = new Map<string, SolidEntity>();
   private readonly collectibleEntities = new Map<string, CollectibleEntity>();
   private readonly doorEntities = new Map<string, DoorEntity>();
+  private terrainEntity: TerrainEntity | undefined;
   private readonly gemHud = new GemHudEntity(this.spriteSheet);
   private gemHudInitialized = false;
   private unsubscribeGameState: (() => void) | undefined;
@@ -53,6 +55,7 @@ export default class GameScene extends Scene {
 
   private createEvents(): void {
     this.unsubscribeGameState = this.gameController.onGameStateChange((event) => {
+      this.syncTerrain(event.state.terrainSeed);
       this.syncSolidEntities(event.state.solids);
       this.syncPlayerEntities(event.state.players);
       this.syncEnemyEntities(event.state.enemies);
@@ -64,6 +67,14 @@ export default class GameScene extends Scene {
 
   private createHud(): void {
     this.entities.add(this.gemHud);
+  }
+
+  private syncTerrain(terrainSeed: number): void {
+    if (this.terrainEntity) {
+      this.terrainEntity.updateSeed(terrainSeed);
+    } else {
+      this.terrainEntity = this.entities.add(new TerrainEntity(this.spriteSheet, terrainSeed));
+    }
   }
 
   private createKeys(): void {

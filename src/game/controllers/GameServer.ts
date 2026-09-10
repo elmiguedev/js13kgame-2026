@@ -7,9 +7,8 @@ import InteractPlayerAction from "../actions/InteractPlayerAction";
 import MovePlayerAction, { type MovePlayerInput } from "../actions/MovePlayerAction";
 import SetPlayerReadyAction from "../actions/SetPlayerReadyAction";
 import type { GemColor } from "../domain/GemColor";
-import Collectible from "../entities/Collectible";
-import Door from "../entities/Door";
 import EnemyFactory from "../entities/EnemyFactory";
+import Door from "../entities/Door";
 import GridObject from "../entities/GridObject";
 import MazeBuilder from "../entities/MazeBuilder";
 import Player from "../entities/Player";
@@ -34,10 +33,11 @@ export default class GameServer {
 
   constructor() {
     const dungeon = this.mazeBuilder.build();
+    this.gameService.setTerrainSeed(Math.floor(Math.random() * 0x100000000));
     this.playerSpawnFloors = dungeon.playerSpawnFloors;
     this.createMaze(dungeon.walls);
     this.createDoor(dungeon.door);
-    this.createCollectibles(dungeon.gems);
+    this.createTotems(dungeon.totemSpawns);
     this.createEnemies(dungeon.enemyPositions);
     this.createBoss(dungeon.bossPosition);
   }
@@ -119,12 +119,13 @@ export default class GameServer {
     }
   }
 
-  private createCollectibles(spawns: readonly { color: Exclude<GemColor, "violet">; position: Position }[]): void {
+  private createTotems(spawns: readonly { color: GemColor; position: Position }[]): void {
     for (const { color, position } of spawns) {
-      const gem = new Collectible(`gem-${color}`, position, color);
-      if (this.world.addObject(gem) && !this.gameService.addCollectible(gem.toState(this.world.toWorldPosition(position)))) {
-        this.world.removeObject(gem.id);
+      const totem = EnemyFactory.createTotem(position, color);
+      if (this.world.addObject(totem) && !this.gameService.addEnemy(totem.id, totem.toState(this.world.toWorldPosition(totem.position)))) {
+        this.world.removeObject(totem.id);
       }
     }
   }
+
 }

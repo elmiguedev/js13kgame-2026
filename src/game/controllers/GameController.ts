@@ -72,6 +72,7 @@ export default class GameController {
     listener({
       state: {
         status: this.gameService.state.status,
+        terrainSeed: this.gameService.state.terrainSeed,
         players: new Map(this.gameService.state.players),
         enemies: new Map(this.gameService.state.enemies),
         solids: new Map(this.gameService.state.solids),
@@ -138,6 +139,7 @@ export default class GameController {
   private serializeState(state: GameState): string {
     return JSON.stringify({
       status: state.status,
+      terrainSeed: state.terrainSeed,
       players: Array.from(state.players.values()),
       enemies: Array.from(state.enemies.values()),
       solids: Array.from(state.solids.values()),
@@ -177,19 +179,21 @@ export default class GameController {
       for (const door of value.doors) {
         doors.set(door.id, door);
       }
-      this.gameService.setState({ status: value.status, players, enemies, solids, collectibles, doors });
+      this.gameService.setState({ status: value.status, terrainSeed: value.terrainSeed, players, enemies, solids, collectibles, doors });
     } catch {
       // Ignore malformed state messages from the relay.
     }
   }
 
-  private isSerializedState(value: unknown): value is { status: GameStateType; players: PlayerState[]; enemies: EnemyState[]; solids: SolidState[]; collectibles: CollectibleState[]; doors: DoorState[] } {
+  private isSerializedState(value: unknown): value is { status: GameStateType; terrainSeed: number; players: PlayerState[]; enemies: EnemyState[]; solids: SolidState[]; collectibles: CollectibleState[]; doors: DoorState[] } {
     if (!value || typeof value !== "object") {
       return false;
     }
 
-    const state = value as { status?: unknown; players?: unknown; enemies?: unknown; solids?: unknown; collectibles?: unknown; doors?: unknown };
+    const state = value as { status?: unknown; terrainSeed?: unknown; players?: unknown; enemies?: unknown; solids?: unknown; collectibles?: unknown; doors?: unknown };
     const valid = (state.status === "lobby" || state.status === "game")
+      && typeof state.terrainSeed === "number"
+      && Number.isInteger(state.terrainSeed)
       && Array.isArray(state.players)
       && state.players.every((player) => this.isPlayerState(player))
       && Array.isArray(state.enemies)
@@ -251,9 +255,9 @@ export default class GameController {
       return false;
     }
 
-    const enemy = value as { id?: unknown; type?: unknown; hp?: unknown; visionRange?: unknown; width?: unknown; height?: unknown; position?: { x?: unknown; y?: unknown } };
+    const enemy = value as { id?: unknown; type?: unknown; hp?: unknown; visionRange?: unknown; width?: unknown; height?: unknown; loot?: unknown; position?: { x?: unknown; y?: unknown } };
     return typeof enemy.id === "string"
-      && (enemy.type === "beholder" || enemy.type === "boss" || enemy.type === "mole")
+      && (enemy.type === "beholder" || enemy.type === "boss" || enemy.type === "mole" || enemy.type === "totem")
       && typeof enemy.hp === "number"
       && Number.isFinite(enemy.hp)
       && typeof enemy.visionRange === "number"
@@ -265,6 +269,7 @@ export default class GameController {
       && typeof enemy.height === "number"
       && Number.isInteger(enemy.height)
       && enemy.height > 0
+      && (enemy.loot === undefined || isGemColor(enemy.loot))
       && typeof enemy.position?.x === "number"
       && Number.isFinite(enemy.position.x)
       && typeof enemy.position?.y === "number"

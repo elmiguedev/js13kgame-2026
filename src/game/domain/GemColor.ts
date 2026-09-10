@@ -1,5 +1,5 @@
 export const GEM_COLORS = ["red", "orange", "yellow", "green", "blue", "indigo", "violet"] as const;
-export const DOOR_GEM_COLORS = GEM_COLORS.slice(0, -1);
+export const DOOR_GEM_COLORS = GEM_COLORS;
 export const GEM_LIGHT_COLORS: Record<GemColor, string> = {
   red: "#ff4040",
   orange: "#ff8a30",

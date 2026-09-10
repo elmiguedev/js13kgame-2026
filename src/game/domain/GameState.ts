@@ -5,6 +5,7 @@ import type SolidState from "./SolidState";
 
 export default interface GameState {
   status: GameStateType;
+  terrainSeed: number;
   players: ReadonlyMap<string, PlayerState>;
   enemies: ReadonlyMap<string, EnemyState>;
   solids: ReadonlyMap<string, SolidState>;

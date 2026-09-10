@@ -19,6 +19,7 @@ export default class GameService {
   private readonly gameStatusChanges = new Observable<GameStatusChange>();
   readonly state: GameState = {
     status: "lobby",
+    terrainSeed: 0,
     players: this.players,
     enemies: this.enemies,
     solids: this.solids,
@@ -41,6 +42,16 @@ export default class GameService {
 
     this.state.status = status;
     this.gameStatusChanges.emit({ status });
+    this.emitStateChange();
+    return true;
+  }
+
+  setTerrainSeed(terrainSeed: number): boolean {
+    if (this.state.terrainSeed === terrainSeed) {
+      return false;
+    }
+
+    this.state.terrainSeed = terrainSeed;
     this.emitStateChange();
     return true;
   }
@@ -70,6 +81,7 @@ export default class GameService {
   setState(state: GameState): void {
     const statusChanged = this.state.status !== state.status;
     this.state.status = state.status;
+    this.state.terrainSeed = state.terrainSeed;
     this.players.clear();
     this.enemies.clear();
     this.solids.clear();
@@ -224,6 +236,7 @@ export default class GameService {
     this.gameStateChanges.emit({
       state: {
         status: this.state.status,
+        terrainSeed: this.state.terrainSeed,
         players: new Map(this.players),
         enemies: new Map(this.enemies),
         solids: new Map(this.solids),
